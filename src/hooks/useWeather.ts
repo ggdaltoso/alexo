@@ -23,13 +23,13 @@ export function useWeather() {
           `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max` +
           `&timezone=America/Sao_Paulo`
         );
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch weather data');
         }
 
         const data = await response.json();
-        
+
         setWeather({
           current: {
             temperature: Math.round(data.current.temperature_2m),
