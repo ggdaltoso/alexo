@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface PixelatedClockProps {
-  date?: Date;
+  date: Date;
   size?: number;
 }
 
@@ -10,27 +10,6 @@ export default function PixelatedClock({
   size = 200,
 }: PixelatedClockProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [time, setTime] = useState(date || new Date());
-
-  // Update time every minute
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTime((prevTime) => {
-        const newTime = new Date(prevTime.getTime());
-        newTime.setMinutes(newTime.getMinutes() + 1);
-        return newTime;
-      });
-    }, 60000); // Update every 60 seconds
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // Sync with the `date` prop if it changes
-  useEffect(() => {
-    if (date) {
-      setTime(date);
-    }
-  }, [date]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -50,15 +29,15 @@ export default function PixelatedClock({
     drawClockFace(ctx, pixelSize);
 
     // Get hours and minutes from the time
-    const hours = time.getHours() % 12;
-    const minutes = time.getMinutes();
+    const hours = date.getHours() % 12;
+    const minutes = date.getMinutes();
 
     // Draw hour hand
     drawHourHand(ctx, hours, minutes, pixelSize);
 
     // Draw minute hand
     drawMinuteHand(ctx, minutes, pixelSize);
-  }, [time, size]);
+  }, [date, size]);
 
   return (
     <canvas
@@ -71,7 +50,7 @@ export default function PixelatedClock({
         width: size,
         height: size,
       }}
-      aria-label={`Pixelated clock showing ${time.toLocaleTimeString([], {
+      aria-label={`Pixelated clock showing ${date.toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
