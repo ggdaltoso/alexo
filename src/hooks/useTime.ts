@@ -1,19 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-export function useTime(initialDate?: Date) {
-  const [time, setTime] = useState(initialDate || new Date());
+const REFRESH_RATE = 60000; // Update every 3 minutes
+
+export function useTime(timeZone: string) {
+  const getTimeInZone = useCallback(() => {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+
+    const parts = formatter.formatToParts(now);
+    const hours = parseInt(
+      parts.find((part) => part.type === 'hour')?.value || '0',
+      10,
+    );
+    const minutes = parseInt(
+      parts.find((part) => part.type === 'minute')?.value || '0',
+      10,
+    );
+    const seconds = parseInt(
+      parts.find((part) => part.type === 'second')?.value || '0',
+      10,
+    );
+
+    const timeInZone = new Date(now);
+    timeInZone.setHours(hours, minutes, seconds, 0);
+
+    return timeInZone;
+  }, [timeZone]);
+
+  const [time, setTime] = useState(getTimeInZone);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setTime((prevTime) => {
-        const newTime = new Date(prevTime.getTime());
-        newTime.setMinutes(newTime.getMinutes() + 1);
-        return newTime;
-      });
-    }, 60000); // Update every 60 seconds
+      setTime(getTimeInZone());
+    }, REFRESH_RATE);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [timeZone]);
 
   return time;
 }
