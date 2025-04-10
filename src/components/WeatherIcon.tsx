@@ -1,5 +1,14 @@
 import React from 'react';
 
+import sun from './icons/sun.png';
+import cloudy from './icons/partly-cloudy.png';
+import cloud from './icons/cloud.png';
+import drizzle from './icons/drizzle.png';
+import snow from './icons/snow.png';
+import rain from './icons/rain-showers.png';
+import thunderstorm from './icons/thunderstorm.png';
+import foggy from './icons/foggy.png';
+
 interface WeatherIconProps {
   code: number;
   className?: string;
@@ -12,23 +21,23 @@ export const WeatherIcon = React.memo(
     const getIconSrc = () => {
       switch (true) {
         case code === 0: // Clear sky
-          return '/assets/icons/sun.png';
+          return sun;
         case code === 1 || code === 2: // Partly cloudy
-          return '/assets/icons/partly-cloudy.png';
+          return cloudy;
         case code === 3: // Overcast
-          return '/assets/icons/cloud.png';
+          return cloud;
         case code >= 51 && code <= 67: // Drizzle or rain
-          return '/assets/icons/drizzle.png';
+          return drizzle;
         case code >= 71 && code <= 77: // Snow
-          return '/assets/icons/snow.png';
+          return snow;
         case code >= 80 && code <= 82: // Rain showers
-          return '/assets/icons/rain-showers.png';
+          return rain;
         case code >= 95 && code <= 99: // Thunderstorm
-          return '/assets/icons/thunderstorm.png';
+          return thunderstorm;
         case code >= 45 && code <= 48: // Foggy
-          return '/assets/icons/foggy.png';
+          return foggy;
         default:
-          return '/assets/icons/cloud.png';
+          return cloud;
       }
     };
 
