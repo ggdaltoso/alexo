@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
 
-export function useTime() {
-  const [time, setTime] = useState(new Date());
+export function useTime(initialDate?: Date) {
+  const [time, setTime] = useState(initialDate || new Date());
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setTime(new Date());
-    }, 60000); // Update every minute
+      setTime((prevTime) => {
+        const newTime = new Date(prevTime.getTime());
+        newTime.setMinutes(newTime.getMinutes() + 1);
+        return newTime;
+      });
+    }, 60000); // Update every 60 seconds
 
     return () => clearInterval(timer);
   }, []);
 
-  return format(time, 'HH:mm');
+  return time;
 }
