@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "paths": {
+      "@react95/core/themes/*": ["./node_modules/@react95/core/cjs/themes/*"]
+    }
+  }
+}
