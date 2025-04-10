@@ -2,8 +2,8 @@ import React from 'react';
 import type { WeatherData } from '../types';
 import { WeatherIcon } from './WeatherIcon';
 import { DailyForecast } from './DailyForecast';
-import { TimeDisplay } from './TimeDisplay';
 import { Frame } from '@react95/core';
+import { WorldClocks } from './WorldClocks';
 
 interface CurrentWeatherProps {
   data: WeatherData;
@@ -34,12 +34,12 @@ export const CurrentWeather = React.memo(({ data }: CurrentWeatherProps) => {
           <span className="font-medium">{today.temperatureMax}</span>
         </div>
       </Frame>
-      <div className="flex flex-col justify-between">
-        <div>
-          <TimeDisplay />
-          <div className="text-2xl font-medium">Oi Gabriel</div>
+      <div className="flex flex-col gap-2">
+        <div className="text-2xl font-medium">Oi Gabriel</div>
+        <WorldClocks />
+        <div className="mt-auto">
+          <DailyForecast forecasts={daily} />
         </div>
-        <DailyForecast forecasts={daily} />
       </div>
     </Frame>
   );
