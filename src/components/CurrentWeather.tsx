@@ -35,7 +35,7 @@ export const CurrentWeather = React.memo(({ data }: CurrentWeatherProps) => {
         </div>
       </Frame>
       <div className="flex flex-col gap-2">
-        <div className="text-2xl font-medium">Oi Gabriel</div>
+        <div className="text-2xl font-medium flex-grow">Oi Gabriel</div>
         <WorldClocks />
         <div className="mt-auto">
           <DailyForecast forecasts={daily} />
