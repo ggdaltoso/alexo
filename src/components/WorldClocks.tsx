@@ -40,7 +40,7 @@ const getTimeForZone = (timeZone: string) => {
 
 export const WorldClocks: React.FC = () => {
   return (
-    <div className="flex justify-between items-center">
+    <div className="flex justify-evenly items-center">
       {timeZones.map(({ label, timeZone }) => {
         const time = getTimeForZone(timeZone);
 
@@ -52,6 +52,7 @@ export const WorldClocks: React.FC = () => {
               {time.toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit',
+                hour12: false,
               })}
             </span>
           </div>
