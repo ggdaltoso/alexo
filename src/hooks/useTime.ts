@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-const REFRESH_RATE = 60000; // Update every 3 minutes
+const REFRESH_RATE = 60 * 1000; // Update every minute
 
 export function useTime(timeZone: string) {
   const getTimeInZone = useCallback(() => {
