@@ -4,6 +4,7 @@ import { WeatherIcon } from './WeatherIcon';
 import { DailyForecast } from './DailyForecast';
 import { Frame } from '@react95/core';
 import { WorldClocks } from './WorldClocks';
+import { BatteryIndicator } from './BatteryIndicator';
 
 interface CurrentWeatherProps {
   data: WeatherData;
@@ -35,7 +36,10 @@ export const CurrentWeather = React.memo(({ data }: CurrentWeatherProps) => {
         </div>
       </Frame>
       <div className="flex flex-col gap-2">
-        <div className="text-2xl font-medium flex-grow">Oi Gabriel</div>
+        <div className="text-2xl font-medium flex-grow">
+          Oi Gabriel
+          <BatteryIndicator />
+        </div>
         <WorldClocks />
         <div className="mt-auto">
           <DailyForecast forecasts={daily} />
