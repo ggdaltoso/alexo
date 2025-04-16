@@ -26,9 +26,7 @@
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3",
-    "vite": "3.2.11"
-  },
-  "imports": {
-    "@react95/core/themes/*": "./node_modules/@react95/core/cjs/themes/*"
+    "vite": "3.2.11",
+    "vite-plugin-singlefile": "^0.13.5"
   }
 }
