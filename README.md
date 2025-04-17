@@ -79,3 +79,35 @@ sudo systemctl enable alexo.service
 ### License
 
 This project is licensed under the MIT License.
+
+
+## Useful Commands
+
+Here are some helpful commands for managing and debugging Alexo on the Raspberry Pi:
+
+### Systemd Services
+
+- **Check service logs in real-time**
+  ```bash
+  journalctl -u alexo.service -f
+  ```
+
+- **Restart the service**
+  ```bash
+  sudo systemctl restart alexo.service
+  ```
+
+- **Stop the service**
+  ```bash
+  sudo systemctl stop alexo.service
+  ```
+
+- **Enable the service to start on boot**
+  ```bash
+  sudo systemctl enable alexo.service
+  ```
+
+- **Disable the service**
+  ```bash
+  sudo systemctl disable alexo.service
+  ```
