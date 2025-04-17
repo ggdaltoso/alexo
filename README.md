@@ -2,7 +2,9 @@
 
 Alexo is a weather dashboard styled with a Windows 95 aesthetic, designed to run on a 3.5" screen powered by a Raspberry Pi Zero. It displays current weather, daily forecasts, world clocks, and battery status.
 
-![Alexo Screenshot](./screenshot.png)
+<div align="center">
+  <img src="./screenshot.png" alt="Alexo Screenshot" />
+</div>
 
 ## Features
 
@@ -10,7 +12,7 @@ Alexo is a weather dashboard styled with a Windows 95 aesthetic, designed to run
 - **World Clocks**: Shows the current time in multiple time zones.
 - **Battery Indicator**: Displays the device's battery status.
 - **Pixelated Clock**: A retro-style clock rendered on a canvas.
-- **Windows 95 Theme**: Styled using `@react95/core` and custom CSS.
+- **Windows 95 Theme**: Styled using [`@react95/core`](https://react95.github.io/React95/) and custom CSS.
 - **Optimized for Small Screens**: Designed to fit and function on a 3.5" display.
 
 ## Getting Started
