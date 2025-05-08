@@ -13,8 +13,8 @@ const Clock = ({ timeZone, label }: { timeZone: string; label: string }) => {
 
   return (
     <div key={timeZone} className="flex flex-col items-center">
-      <span className="block text-[0.25rem] text-gray-500">{label}</span>
-      <PixelatedClock size={40} date={time} />
+      <span className="block text-[0.5rem] text-gray-500">{label}</span>
+      <PixelatedClock size={30} date={time} />
       <span className="block text-[0.5rem] font-bold">
         {time.toLocaleTimeString('en-US', {
           hour: '2-digit',
