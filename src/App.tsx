@@ -6,7 +6,7 @@ function App() {
   const { weather, loading, error } = useWeather();
 
   return (
-    <div className="min-h-screen h-[480px]">
+    <div className="min-h-screen h-[320px]">
       <div className="h-full p-2">
         {loading ? (
           <div className="flex justify-center items-center h-full">

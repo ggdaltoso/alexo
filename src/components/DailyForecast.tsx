@@ -15,15 +15,19 @@ export const DailyForecast = React.memo(({ forecasts }: DailyForecastProps) => {
         <Frame
           boxShadow="$in"
           key={day.date}
-          className="flex flex-col items-center p-2"
+          className="flex flex-col items-center p-1"
         >
-          <div className="text-sm font-medium">
+          <div className="text-[0.5rem] font-medium">
             {format(new Date(day.date), 'EEE')}
           </div>
-          <WeatherIcon code={day.weatherCode} className="size-6 my-1" />
-          <div className="text-xs space-x-1">
-            <span className="text-gray-500">{day.temperatureMin}</span>
-            <span className="font-medium">{day.temperatureMax}</span>
+          <WeatherIcon code={day.weatherCode} className="size-4 my-0.5" />
+          <div className="space-x-0.5">
+            <span className="text-gray-500 text-[0.45rem]">
+              {day.temperatureMin}
+            </span>
+            <span className="font-medium text-[0.5rem]">
+              {day.temperatureMax}
+            </span>
           </div>
         </Frame>
       ))}
