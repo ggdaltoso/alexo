@@ -1,0 +1,30 @@
+// Minimal Express server setup for Alexo backend
+const express = require('express');
+const http = require('http');
+const wsServer = require('./ws');
+const state = require('./state');
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+app.use(express.json());
+
+app.get('/api/state', (req, res) => {
+  res.json(state.getState());
+});
+
+app.post('/api/nfc', (req, res) => {
+  const { type, message } = req.body;
+  if (typeof type !== 'string' || typeof message !== 'string') {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+  state.updateMessage({ type, message });
+  wsServer.broadcast({ type, message });
+  res.status(200).json({ ok: true });
+});
+
+const server = http.createServer(app);
+wsServer.attach(server);
+
+server.listen(PORT, () => {
+  console.log(`Backend listening on port ${PORT}`);
+});
