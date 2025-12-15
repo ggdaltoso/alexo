@@ -1,50 +1,13 @@
-import React from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import ForecastDashboard from './screens/ForecastDashboard';
 import CalendarScreen from './screens/CalendarScreen';
 import MessageScreen from './screens/MessageScreen';
 import { CurrentWeather } from './screens/CurrentWeather';
-import { useWeather } from './hooks/useWeather';
-
-const KEYBOARD_ROUTES = ['/', '/forecast', '/calendar', '/message'];
 
 export default function App() {
-  const { weather, loading } = useWeather();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  React.useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        const idx = KEYBOARD_ROUTES.indexOf(location.pathname);
-        navigate(KEYBOARD_ROUTES[(idx + 1) % KEYBOARD_ROUTES.length]);
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        const idx = KEYBOARD_ROUTES.indexOf(location.pathname);
-        navigate(
-          KEYBOARD_ROUTES[
-            (idx - 1 + KEYBOARD_ROUTES.length) % KEYBOARD_ROUTES.length
-          ],
-        );
-      } else if (e.key >= '1' && e.key <= '4') {
-        navigate(KEYBOARD_ROUTES[parseInt(e.key, 10) - 1]);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [navigate, location.pathname]);
-
   return (
     <Routes>
-      <Route
-        path="/"
-        element={
-          loading ? (
-            <div>Loading...</div>
-          ) : (
-            weather && <CurrentWeather data={weather} />
-          )
-        }
-      />
+      <Route path="/" element={<CurrentWeather />} />
       <Route path="/forecast" element={<ForecastDashboard />} />
       <Route path="/calendar" element={<CalendarScreen />} />
       <Route path="/message" element={<MessageScreen />} />

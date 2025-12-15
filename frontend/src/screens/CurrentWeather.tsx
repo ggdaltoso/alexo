@@ -1,16 +1,22 @@
 import * as React from 'react';
-import type { WeatherData } from '../types';
 import { WeatherIcon } from '../components/WeatherIcon';
 import { DailyForecast } from '../components/DailyForecast';
 import { Frame } from '@react95/core';
 import { WorldClocks } from '../components/WorldClocks';
+import { useApp } from '../contexts/AppContext';
 
-interface CurrentWeatherProps {
-  data: WeatherData;
-}
+export const CurrentWeather = React.memo(() => {
+  const { weather, weatherLoading } = useApp();
 
-export const CurrentWeather = React.memo(({ data }: CurrentWeatherProps) => {
-  const { current, daily } = data;
+  if (weatherLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!weather) {
+    return <div>No weather data available</div>;
+  }
+
+  const { current, daily } = weather;
   const today = daily[0];
 
   return (
