@@ -1,9 +1,9 @@
 import React from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import ForecastDashboard from './components/ForecastDashboard';
-import CalendarScreen from './components/CalendarScreen';
-import MessageScreen from './components/MessageScreen';
-import { CurrentWeather } from './components/CurrentWeather';
+import ForecastDashboard from './screens/ForecastDashboard';
+import CalendarScreen from './screens/CalendarScreen';
+import MessageScreen from './screens/MessageScreen';
+import { CurrentWeather } from './screens/CurrentWeather';
 import { useWeather } from './hooks/useWeather';
 
 const KEYBOARD_ROUTES = ['/', '/forecast', '/calendar', '/message'];
