@@ -1,10 +1,9 @@
-import React from 'react';
+import * as React from 'react';
 import type { WeatherData } from '../types';
 import { WeatherIcon } from './WeatherIcon';
 import { DailyForecast } from './DailyForecast';
 import { Frame } from '@react95/core';
 import { WorldClocks } from './WorldClocks';
-import { BatteryIndicator } from './BatteryIndicator';
 
 interface CurrentWeatherProps {
   data: WeatherData;

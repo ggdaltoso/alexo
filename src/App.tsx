@@ -1,5 +1,5 @@
 import { Loader } from 'lucide-react';
-import { useWeather } from './hooks/useWeather';
+import { useWeather } from '../frontend/src/hooks/useWeather';
 import { CurrentWeather } from './components/CurrentWeather';
 
 function App() {

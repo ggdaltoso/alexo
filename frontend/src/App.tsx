@@ -1,13 +1,15 @@
 import React from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import PixelatedClock from './components/PixelatedClock';
 import ForecastDashboard from './components/ForecastDashboard';
 import CalendarScreen from './components/CalendarScreen';
 import MessageScreen from './components/MessageScreen';
+import { CurrentWeather } from './components/CurrentWeather';
+import { useWeather } from './hooks/useWeather';
 
 const KEYBOARD_ROUTES = ['/', '/forecast', '/calendar', '/message'];
 
 export default function App() {
+  const { weather, loading } = useWeather();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -33,7 +35,16 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<PixelatedClock />} />
+      <Route
+        path="/"
+        element={
+          loading ? (
+            <div>Loading...</div>
+          ) : (
+            weather && <CurrentWeather data={weather} />
+          )
+        }
+      />
       <Route path="/forecast" element={<ForecastDashboard />} />
       <Route path="/calendar" element={<CalendarScreen />} />
       <Route path="/message" element={<MessageScreen />} />

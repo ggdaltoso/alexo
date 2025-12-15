@@ -16,6 +16,10 @@ body {
   min-height: -webkit-fill-available;
 }
 
+html, body, #root {
+  height: 100%;
+}
+
 /* Ensure minimum touch target size */
 button,
 a,

@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import type { WeatherData, Coordinates } from '../types';
 
 const SAO_VICENTE_COORDINATES: Coordinates = {
-  latitude: -23.9633,  // São Vicente, SP, Brazil
-  longitude: -46.3919
+  latitude: -23.9633, // São Vicente, SP, Brazil
+  longitude: -46.3919,
 };
 
 export function useWeather() {
@@ -18,10 +18,10 @@ export function useWeather() {
         setLoading(true);
         const response = await fetch(
           `https://api.open-meteo.com/v1/forecast?` +
-          `latitude=${coordinates.latitude}&longitude=${coordinates.longitude}` +
-          `&current=temperature_2m,wind_speed_10m,weather_code` +
-          `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max` +
-          `&timezone=America/Sao_Paulo`
+            `latitude=${coordinates.latitude}&longitude=${coordinates.longitude}` +
+            `&current=temperature_2m,wind_speed_10m,weather_code` +
+            `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max` +
+            `&timezone=America/Sao_Paulo`,
         );
 
         if (!response.ok) {
@@ -41,7 +41,8 @@ export function useWeather() {
             date,
             temperatureMax: Math.round(data.daily.temperature_2m_max[index]),
             temperatureMin: Math.round(data.daily.temperature_2m_min[index]),
-            precipitationProbability: data.daily.precipitation_probability_max[index],
+            precipitationProbability:
+              data.daily.precipitation_probability_max[index],
             windSpeed: Math.round(data.daily.wind_speed_10m_max[index]),
             weatherCode: data.daily.weather_code[index],
           })),
