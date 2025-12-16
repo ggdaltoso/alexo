@@ -6,6 +6,20 @@ const state = require('./state');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Enable CORS
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
+
 app.use(express.json());
 
 // app.get('/api/state', (req, res) => {
