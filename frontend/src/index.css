@@ -9,6 +9,7 @@ html {
 body {
   min-height: 100vh;
   min-height: -webkit-fill-available;
+  padding: 20px;
 }
 
 #root {
