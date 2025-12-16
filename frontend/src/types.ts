@@ -34,3 +34,14 @@ export interface BatteryStatus {
   level: number;
   charging: boolean;
 }
+
+// Backend types
+export interface NFCMessage {
+  type: string;
+  message: string;
+  timestamp: number;
+}
+
+export interface BackendState {
+  message: NFCMessage | null;
+}
