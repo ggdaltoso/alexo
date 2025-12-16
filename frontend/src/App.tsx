@@ -8,7 +8,7 @@ import { Loader } from 'lucide-react';
 import { Frame, ProgressBar } from '@react95/core';
 
 export default function App() {
-  const { weatherLoading: loading } = useApp();
+  const { weatherLoading: loading, timerProgress } = useApp();
 
   if (loading) {
     return (
@@ -33,7 +33,10 @@ export default function App() {
         right="10px"
         width={'460px'}
       >
-        <ProgressBar width={'460px'} percent={30} />
+        <ProgressBar
+          width={'460px'}
+          percent={Math.min(100, Math.max(0, timerProgress))}
+        />
       </Frame>
     </>
   );
