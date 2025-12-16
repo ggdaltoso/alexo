@@ -1,5 +1,17 @@
-import { Frame } from '@react95/core';
+import { Frame, TitleBar } from '@react95/core';
 import { useApp } from '../contexts';
+import { Bulb, Wmsui322223, Message } from '@react95/icons';
+import { MessageType } from 'src/types';
+
+const MESSAGE_ICONS = {
+  info: <Wmsui322223 variant="16x16_4" />,
+  warning: <Bulb variant="32x32_4" />,
+};
+
+const MessageTypeIcon: React.FC<{ type: MessageType }> = ({ type }) => {
+  const icon = MESSAGE_ICONS[type] || '💬';
+  return <span>{icon}</span>;
+};
 
 export default function MessageScreen() {
   const { currentMessage } = useApp();
@@ -18,24 +30,41 @@ export default function MessageScreen() {
     <Frame
       boxShadow="$out"
       bgColor="$material"
-      className="p-1 flex flex-col  gap-1 h-full"
+      p="$2"
+      gap="$2"
+      display="flex"
+      flexDirection="column"
+      h="100%"
     >
-      <Frame boxShadow="$in" bgColor="$material" className="p-2 h-full text-xl">
+      <TitleBar icon={<Message variant="16x16_4" />} title="Message" />
+      <Frame
+        boxShadow="$in"
+        bgColor="$material"
+        p="$8"
+        h="100%"
+        className="text-xl"
+      >
         {currentMessage.message}
       </Frame>
 
-      <div className="flex gap-1">
-        <Frame boxShadow="$in" bgColor="$material" className="flex p-1  grow">
-          {currentMessage.type}
+      <Frame display="flex" gap="$2">
+        <Frame
+          boxShadow="$in"
+          bgColor="$material"
+          p="$4"
+          className="flex  grow"
+        >
+          <MessageTypeIcon type={currentMessage.type} />
         </Frame>
         <Frame
           boxShadow="$in"
           bgColor="$material"
-          className="flex items-center justify-center p-1"
+          p="$4"
+          className="flex items-center justify-center leading-none"
         >
           {formattedTime}
         </Frame>
-      </div>
+      </Frame>
     </Frame>
   );
 }

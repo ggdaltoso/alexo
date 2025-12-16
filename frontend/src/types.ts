@@ -35,9 +35,11 @@ export interface BatteryStatus {
   charging: boolean;
 }
 
+export type MessageType = 'info' | 'warning';
+
 // Backend types
 export interface NFCMessage {
-  type: string;
+  type: MessageType;
   message: string;
   timestamp: number;
 }
