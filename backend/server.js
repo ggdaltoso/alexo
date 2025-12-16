@@ -8,17 +8,19 @@ const PORT = process.env.PORT || 3001;
 
 app.use(express.json());
 
-app.get('/api/state', (req, res) => {
-  res.json(state.getState());
-});
+// app.get('/api/state', (req, res) => {
+//   res.json(state.getState());
+// });
 
 app.post('/api/nfc', (req, res) => {
   const { type, message } = req.body;
   if (typeof type !== 'string' || typeof message !== 'string') {
     return res.status(400).json({ error: 'Invalid payload' });
   }
-  state.updateMessage({ type, message });
-  wsServer.broadcast({ type, message });
+  // state.updateMessage({ type, message });
+
+  wsServer.broadcast({ type, message, timestamp: Date.now() });
+
   res.status(200).json({ ok: true });
 });
 
