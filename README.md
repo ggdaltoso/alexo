@@ -2,7 +2,7 @@
 
 Alexo is a weather dashboard styled with a Windows 95 aesthetic, designed to run on a 3.5" screen powered by a Raspberry Pi Zero. It displays current weather, daily forecasts, calendar, and messages with real-time updates via WebSocket.
 
-./video.mp4"
+./video.mp4
 
 ## Features
 
