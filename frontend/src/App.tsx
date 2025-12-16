@@ -5,6 +5,7 @@ import MessageScreen from './screens/MessageScreen';
 import { Clock } from './screens/Clock';
 import { useApp } from './contexts';
 import { Loader } from 'lucide-react';
+import { Frame, ProgressBar } from '@react95/core';
 
 export default function App() {
   const { weatherLoading: loading } = useApp();
@@ -18,11 +19,22 @@ export default function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<Clock />} />
-      <Route path="/forecast" element={<ForecastDashboard />} />
-      <Route path="/calendar" element={<CalendarScreen />} />
-      <Route path="/message" element={<MessageScreen />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<Clock />} />
+        <Route path="/forecast" element={<ForecastDashboard />} />
+        <Route path="/calendar" element={<CalendarScreen />} />
+        <Route path="/message" element={<MessageScreen />} />
+      </Routes>
+      <Frame
+        position="fixed"
+        bottom="10px"
+        left="10px"
+        right="10px"
+        width={'460px'}
+      >
+        <ProgressBar width={'460px'} percent={30} />
+      </Frame>
+    </>
   );
 }
