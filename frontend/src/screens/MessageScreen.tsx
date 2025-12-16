@@ -5,21 +5,7 @@ export default function MessageScreen() {
   const { currentMessage } = useApp();
 
   if (!currentMessage) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          fontSize: '16px',
-          color: '#000080',
-          fontFamily: 'ms_sans_serif',
-        }}
-      >
-        No message
-      </div>
-    );
+    return;
   }
 
   const messageDate = new Date(currentMessage.timestamp);

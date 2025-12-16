@@ -1,24 +1,13 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-} from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { WeatherData, Coordinates, NFCMessage } from '../types';
 import { wsService } from '../services/websocket';
-import { apiService } from '../services/api';
 
 interface AppContextType {
   // Weather
   weather: WeatherData | null;
   weatherLoading: boolean;
   weatherError: string | null;
-
-  // Time
-  currentTime: Date;
-  getTimeInZone: (timeZone: string) => Date;
 
   // Navigation
   navigateToNext: () => void;
@@ -48,9 +37,6 @@ export function AppProvider({ children }: AppProviderProps) {
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherError, setWeatherError] = useState<string | null>(null);
   const [coordinates] = useState<Coordinates>(SAO_VICENTE_COORDINATES);
-
-  // Time state
-  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   // Message state
   const [currentMessage, setCurrentMessage] = useState<NFCMessage | null>(null);
@@ -109,12 +95,6 @@ export function AppProvider({ children }: AppProviderProps) {
     return () => clearInterval(interval);
   }, [coordinates]);
 
-  // Time effect
-  useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 60000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Backend connection effect
   useEffect(() => {
     // Fetch initial state
@@ -137,37 +117,6 @@ export function AppProvider({ children }: AppProviderProps) {
       unsubscribe();
       wsService.disconnect();
     };
-  }, []);
-
-  // Helper to get time in a specific timezone
-  const getTimeInZone = useCallback((timeZone: string) => {
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-
-    const parts = formatter.formatToParts(now);
-    const hours = parseInt(
-      parts.find((part) => part.type === 'hour')?.value || '0',
-      10,
-    );
-    const minutes = parseInt(
-      parts.find((part) => part.type === 'minute')?.value || '0',
-      10,
-    );
-    const seconds = parseInt(
-      parts.find((part) => part.type === 'second')?.value || '0',
-      10,
-    );
-
-    const timeInZone = new Date(now);
-    timeInZone.setHours(hours, minutes, seconds, 0);
-
-    return timeInZone;
   }, []);
 
   // Keyboard navigation effect
@@ -216,8 +165,6 @@ export function AppProvider({ children }: AppProviderProps) {
     weather,
     weatherLoading,
     weatherError,
-    currentTime,
-    getTimeInZone,
     navigateToNext,
     navigateToPrevious,
     navigateToScreen,
