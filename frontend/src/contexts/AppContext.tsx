@@ -6,7 +6,9 @@ import React, {
   useCallback,
 } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import type { WeatherData, Coordinates } from '../types';
+import type { WeatherData, Coordinates, NFCMessage } from '../types';
+import { wsService } from '../services/websocket';
+import { apiService } from '../services/api';
 
 interface AppContextType {
   // Weather
@@ -22,6 +24,9 @@ interface AppContextType {
   navigateToNext: () => void;
   navigateToPrevious: () => void;
   navigateToScreen: (index: number) => void;
+
+  // Messages
+  currentMessage: NFCMessage | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -46,6 +51,9 @@ export function AppProvider({ children }: AppProviderProps) {
 
   // Time state
   const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  // Message state
+  const [currentMessage, setCurrentMessage] = useState<NFCMessage | null>(null);
 
   // Navigation
   const navigate = useNavigate();
@@ -105,6 +113,30 @@ export function AppProvider({ children }: AppProviderProps) {
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Backend connection effect
+  useEffect(() => {
+    // Fetch initial state
+    // apiService
+    //   .getState()
+    //   .then((state) => {
+    //     setCurrentMessage(state.message);
+    //   })
+    //   .catch((error) => {
+    //     console.error('Failed to fetch initial state:', error);
+    //   });
+
+    // Connect to WebSocket for real-time updates
+    wsService.connect();
+    const unsubscribe = wsService.subscribe((message) => {
+      setCurrentMessage(message);
+    });
+
+    return () => {
+      unsubscribe();
+      wsService.disconnect();
+    };
   }, []);
 
   // Helper to get time in a specific timezone
@@ -189,6 +221,7 @@ export function AppProvider({ children }: AppProviderProps) {
     navigateToNext,
     navigateToPrevious,
     navigateToScreen,
+    currentMessage,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
