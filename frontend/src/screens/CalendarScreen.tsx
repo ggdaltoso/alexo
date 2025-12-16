@@ -9,7 +9,7 @@ function addDays(date: Date, days: number) {
   d.setDate(d.getDate() + days);
   return d;
 }
-const MOCK_EVENTS: CalendarEvent[] = Array.from({ length: 7 }).map((_, i) => {
+const MOCK_EVENTS: CalendarEvent[] = Array.from({ length: 6 }).map((_, i) => {
   const d = addDays(today, i);
   return {
     date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
@@ -22,10 +22,7 @@ export default function CalendarScreen() {
   return (
     <div
       style={{
-        width: 480,
-        height: 320,
         padding: 16,
-        fontFamily: 'monospace',
         fontSize: 20,
       }}
     >
