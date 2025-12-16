@@ -8,7 +8,13 @@ const timeZones = [
   { label: 'Spain', timeZone: 'Europe/Madrid' },
 ];
 
-const Clock = ({ timeZone, label }: { timeZone: string; label: string }) => {
+export const Clock = ({
+  timeZone,
+  label,
+}: {
+  timeZone: string;
+  label: string;
+}) => {
   const time = useTimeZone(timeZone);
 
   return (
