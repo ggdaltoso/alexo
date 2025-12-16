@@ -10,5 +10,8 @@
     "build:frontend": "cd frontend && npm run build",
     "build": "npm run build:frontend",
     "preview": "cd frontend && npm run preview"
+  },
+  "dependencies": {
+    "concurrently": "9.2.1"
   }
 }
