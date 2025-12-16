@@ -1,6 +1,6 @@
 import React from 'react';
 import PixelatedClock from './PixelatedClock';
-import { useTime } from '../hooks/useTime';
+import { useTimeZone } from '../hooks/useTimeZone';
 
 const timeZones = [
   { label: 'PST', timeZone: 'America/Los_Angeles' },
@@ -8,8 +8,14 @@ const timeZones = [
   { label: 'Spain', timeZone: 'Europe/Madrid' },
 ];
 
-const Clock = ({ timeZone, label }: { timeZone: string; label: string }) => {
-  const time = useTime(timeZone);
+export const Clock = ({
+  timeZone,
+  label,
+}: {
+  timeZone: string;
+  label: string;
+}) => {
+  const time = useTimeZone(timeZone);
 
   return (
     <div key={timeZone} className="flex flex-col items-center">

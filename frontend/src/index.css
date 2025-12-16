@@ -9,11 +9,16 @@ html {
 body {
   min-height: 100vh;
   min-height: -webkit-fill-available;
+  padding: 10px 10px 40px 10px;
 }
 
 #root {
   min-height: 100vh;
   min-height: -webkit-fill-available;
+}
+
+html, body, #root {
+  height: 100%;
 }
 
 /* Ensure minimum touch target size */

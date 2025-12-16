@@ -1,3 +1,9 @@
+export type CalendarEvent = {
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  title: string;
+};
+
 export interface WeatherData {
   current: CurrentWeather;
   daily: DailyForecast[];
@@ -27,4 +33,17 @@ export interface Coordinates {
 export interface BatteryStatus {
   level: number;
   charging: boolean;
+}
+
+export type MessageType = 'info' | 'warning';
+
+// Backend types
+export interface NFCMessage {
+  type: MessageType;
+  message: string;
+  timestamp: number;
+}
+
+export interface BackendState {
+  message: NFCMessage | null;
 }
