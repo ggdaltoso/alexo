@@ -31,11 +31,17 @@ The project is structured as a monorepo with two main components:
   - `@react95/core` & `@react95/icons` - Windows 95 UI components
 
 ### Backend
-- **Runtime**: Node.js (v14.x)
+- **Runtime**: Node.js (v14.x recommended, works with newer versions)
 - **Framework**: Express.js
 - **WebSocket**: ws library for real-time communication
+- **Production Mode**: Serves both API and static frontend files on a single port
 - **API Endpoints**:
   - `POST /api/nfc` - Receive NFC messages and broadcast via WebSocket
+
+### Environment Configuration
+- **Single `.env` file** at the root configures both frontend and backend
+- **Development**: Backend and frontend run on separate ports with CORS enabled
+- **Production**: Backend serves frontend static files (no CORS needed)
 
 ## Getting Started
 
@@ -53,24 +59,42 @@ The project is structured as a monorepo with two main components:
    cd alexo
    ```
 
-2. Install dependencies for the root project:
+2. Install dependencies for all packages:
    ```bash
    npm install
+   cd frontend && npm install && cd ..
+   cd backend && npm install && cd ..
    ```
 
-3. Install frontend dependencies:
+3. Configure environment variables:
    ```bash
-   cd frontend
-   npm install
-   cd ..
+   # Copy the example file
+   cp .env.example .env
+   
+   # Edit .env for your environment
+   # For development, default values should work
+   # For production, see .env.production example
    ```
 
-4. Install backend dependencies:
-   ```bash
-   cd backend
-   npm install
-   cd ..
-   ```
+### Environment Variables
+
+The project uses a single `.env` file at the root that configures both frontend and backend:
+
+**Development** (`.env`):
+```bash
+PORT=3001
+NODE_ENV=development
+VITE_API_URL=http://localhost:3001
+VITE_WS_URL=ws://localhost:3001
+```
+
+**Production** (`.env.production` or update `.env`):
+```bash
+PORT=3001
+NODE_ENV=production
+VITE_API_URL=              # Empty = uses relative URLs
+VITE_WS_URL=ws://localhost:3001
+```
 
 ### Development
 
@@ -82,7 +106,7 @@ npm run dev
 
 This will start:
 - **Backend** on `http://localhost:3001` (WebSocket server + API)
-- **Frontend** on `http://localhost:5173` (Vite dev server)
+- **Frontend** on Vite dev server (separate port with CORS enabled)
 
 Or run them separately:
 
@@ -94,91 +118,108 @@ npm run dev:frontend
 npm run dev:backend
 ```
 
-### Build and Deploy to Raspberry Pi
+### Production Build
 
-1. Build the frontend for production:
+In production, the backend serves both the API and the frontend static files on a single port.
+
+1. Build the frontend:
    ```bash
    npm run build
    ```
-   This generates optimized files in the `frontend/dist` directory.
+   This generates optimized files in `frontend/dist/`
 
-2. Copy the frontend build to your Raspberry Pi Zero:
+2. Start the production server:
    ```bash
-   scp -r frontend/dist/ pi@<raspberry-pi-ip>:/home/pi/alexo
+   npm start
+   ```
+   The server will run on `http://localhost:3001` serving both API and frontend.
+
+### Deploy to Raspberry Pi
+
+1. Build the project locally:
+   ```bash
+   npm run build
    ```
 
-3. Copy the backend to your Raspberry Pi Zero:
+2. Copy the entire project to your Raspberry Pi:
    ```bash
-   scp -r backend/ pi@<raspberry-pi-ip>:/home/pi/alexo-backend
+   scp -r . pi@<raspberry-pi-ip>:/home/pi/alexo
    ```
 
-4. On the Raspberry Pi, install backend dependencies and start the server:
+3. SSH into the Raspberry Pi and configure environment:
    ```bash
    ssh pi@<raspberry-pi-ip>
-   cd /home/pi/alexo-backend
+   cd /home/pi/alexo
+   
+   # Copy production environment file
+   cp .env.production .env
+   
+   # Install dependencies
    npm install
-   node server.js
+   cd backend && npm install && cd ..
    ```
 
-5. Run Chromium browser in kiosk mode to display the frontend:
+4. Start the server:
    ```bash
-   chromium-browser --kiosk --incognito --disable-infobars /home/pi/alexo/dist/index.html
+   npm start
+   ```
+
+5. Open Chromium in kiosk mode:
+   ```bash
+   chromium-browser --kiosk --incognito --disable-infobars http://localhost:3001
    ```
 
 
-#### Optional: Create Systemd Services to Run on Boot
+#### Optional: Create Systemd Service to Run on Boot
 
-To automatically launch both the backend and frontend on boot, create systemd services:
+To automatically launch Alexo on boot, create a systemd service:
 
-##### Backend Service
-
-1. Create a backend service file:
+1. Create a service file:
    ```bash
-   sudo nano /etc/systemd/system/alexo-backend.service
+   sudo nano /etc/systemd/system/alexo.service
    ```
 
 2. Add the following content:
    ```ini
    [Unit]
-   Description=Alexo Backend Server
+   Description=Alexo Weather Dashboard
    After=network-online.target
    Requires=network-online.target
 
    [Service]
    Type=simple
    User=pi
-   WorkingDirectory=/home/pi/alexo-backend
-   ExecStart=/usr/bin/node server.js
+   WorkingDirectory=/home/pi/alexo
+   ExecStart=/usr/bin/npm start
    Restart=always
    RestartSec=10
+   Environment=NODE_ENV=production
 
    [Install]
    WantedBy=multi-user.target
    ```
 
-3. Enable and start the backend service:
+3. Enable and start the service:
    ```bash
-   sudo systemctl enable alexo-backend.service
-   sudo systemctl start alexo-backend.service
+   sudo systemctl enable alexo.service
+   sudo systemctl start alexo.service
    ```
 
-##### Frontend Service
-
-1. Create a frontend service file:
+4. Create a separate service for the Chromium kiosk display:
    ```bash
-   sudo nano /etc/systemd/system/alexo-frontend.service
+   sudo nano /etc/systemd/system/alexo-display.service
    ```
 
-2. Add the following content:
+5. Add the following content:
    ```ini
    [Unit]
-   Description=Alexo Frontend Display
-   After=graphical.target alexo-backend.service
-   Requires=alexo-backend.service
+   Description=Alexo Chromium Display
+   After=graphical.target alexo.service
+   Requires=alexo.service
 
    [Service]
    User=pi
-   ExecStart=/usr/bin/chromium-browser --kiosk --incognito --disable-infobars /home/pi/alexo/dist/index.html
+   ExecStart=/usr/bin/chromium-browser --kiosk --incognito --disable-infobars http://localhost:3001
    Environment=DISPLAY=:0
    Restart=always
    RestartSec=10
@@ -187,10 +228,10 @@ To automatically launch both the backend and frontend on boot, create systemd se
    WantedBy=graphical.target
    ```
 
-3. Enable and start the frontend service:
+6. Enable and start the display service:
    ```bash
-   sudo systemctl enable alexo-frontend.service
-   sudo systemctl start alexo-frontend.service
+   sudo systemctl enable alexo-display.service
+   sudo systemctl start alexo-display.service
    ```
 
 ## API Reference
@@ -234,20 +275,23 @@ The backend runs a WebSocket server on the same port as the HTTP server (default
 
 ```
 alexo/
-├── frontend/              # React frontend application
+├── .env                  # Environment variables (not committed)
+├── .env.example          # Example environment configuration
+├── .env.production       # Production environment template
+├── frontend/             # React frontend application
 │   ├── src/
-│   │   ├── components/   # Reusable UI components
-│   │   ├── screens/      # Main screen components
-│   │   ├── contexts/     # React contexts
-│   │   ├── hooks/        # Custom React hooks
-│   │   ├── services/     # API and WebSocket services
-│   │   └── config/       # Configuration files
-│   └── dist/             # Production build output
-├── backend/              # Express.js backend server
-│   ├── server.js         # Main server file
-│   ├── ws.js             # WebSocket server logic
-│   └── state.js          # Application state management
-└── package.json          # Root package configuration
+│   │   ├── components/  # Reusable UI components
+│   │   ├── screens/     # Main screen components
+│   │   ├── contexts/    # React contexts
+│   │   ├── hooks/       # Custom React hooks
+│   │   ├── services/    # API and WebSocket services
+│   │   └── config/      # Configuration files (reads VITE_ env vars)
+│   └── dist/            # Production build output (served by backend)
+├── backend/             # Express.js backend server
+│   ├── server.js        # Main server file (serves API + static files)
+│   ├── ws.js            # WebSocket server logic
+│   └── state.js         # Application state management
+└── package.json         # Root package with npm scripts
 ```
 
 ## License
@@ -256,48 +300,69 @@ This project is licensed under the MIT License.
 
 ## Useful Commands
 
-Here are some helpful commands for managing and debugging Alexo on the Raspberry Pi:
+Here are some helpful commands for managing and debugging Alexo:
 
-### Systemd Services
-
-- **Check backend service logs in real-time**
+### Development
+- **Run both frontend and backend in development mode**
   ```bash
-  journalctl -u alexo-backend.service -f
+  npm run dev
   ```
 
-- **Check frontend service logs in real-time**
+- **Run only frontend**
   ```bash
-  journalctl -u alexo-frontend.service -f
+  npm run dev:frontend
+  ```
+
+- **Run only backend**
+  ```bash
+  npm run dev:backend
+  ```
+
+### Production
+- **Build frontend for production**
+  ```bash
+  npm run build
+  ```
+
+- **Start production server (serves both API and frontend)**
+  ```bash
+  npm start
+  ```
+
+### Systemd Services (Raspberry Pi)
+
+- **Check service logs in real-time**
+  ```bash
+  journalctl -u alexo.service -f
+  journalctl -u alexo-display.service -f
   ```
 
 - **Restart services**
   ```bash
-  sudo systemctl restart alexo-backend.service
-  sudo systemctl restart alexo-frontend.service
+  sudo systemctl restart alexo.service
+  sudo systemctl restart alexo-display.service
   ```
 
 - **Stop services**
   ```bash
-  sudo systemctl stop alexo-backend.service
-  sudo systemctl stop alexo-frontend.service
+  sudo systemctl stop alexo.service
+  sudo systemctl stop alexo-display.service
   ```
 
 - **Check service status**
   ```bash
-  sudo systemctl status alexo-backend.service
-  sudo systemctl status alexo-frontend.service
+  sudo systemctl status alexo.service
+  sudo systemctl status alexo-display.service
   ```
 
-  ```bash
-  sudo systemctl stop alexo.service
-  ```
-
-- **Enable the service to start on boot**
+- **Enable services to start on boot**
   ```bash
   sudo systemctl enable alexo.service
+  sudo systemctl enable alexo-display.service
   ```
 
-- **Disable the service**
+- **Disable services**
   ```bash
   sudo systemctl disable alexo.service
+  sudo systemctl disable alexo-display.service
   ```
