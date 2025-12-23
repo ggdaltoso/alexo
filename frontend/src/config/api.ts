@@ -1,13 +1,7 @@
 // API configuration for backend connection
-const isDevelopment = import.meta.env.DEV;
-
 export const API_CONFIG = {
-  // In production, backend runs on same host (Raspberry Pi)
-  // In development, backend runs on different port
-  BASE_URL: isDevelopment ? 'http://localhost:3001' : '',
-  WS_URL: isDevelopment
-    ? 'ws://localhost:3001'
-    : `ws://${window.location.host}`,
+  BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
+  WS_URL: import.meta.env.VITE_WS_URL || 'ws://localhost:3001',
 };
 
 export const API_ENDPOINTS = {
