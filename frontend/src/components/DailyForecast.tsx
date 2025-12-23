@@ -1,5 +1,5 @@
 import React from 'react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import type { DailyForecast as DailyForecastType } from '../types';
 import { WeatherIcon } from './WeatherIcon';
 import { Frame } from '@react95/core';
@@ -18,7 +18,7 @@ export const DailyForecast = React.memo(({ forecasts }: DailyForecastProps) => {
           className="flex flex-col items-center p-1"
         >
           <div className="text-[0.5rem] font-medium">
-            {format(new Date(day.date), 'EEE')}
+            {format(parseISO(day.date), 'EEE')}
           </div>
           <WeatherIcon code={day.weatherCode} className="size-4 my-0.5" />
           <div className="space-x-0.5">
