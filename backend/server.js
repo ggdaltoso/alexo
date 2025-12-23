@@ -1,4 +1,6 @@
 // Minimal Express server setup for Alexo backend
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+
 const express = require('express');
 const http = require('http');
 const wsServer = require('./ws');
