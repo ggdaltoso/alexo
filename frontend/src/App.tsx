@@ -31,10 +31,10 @@ export default function App() {
         bottom="10px"
         left="10px"
         right="10px"
-        width={`${window.innerWidth - 20}px`}
+        width={`${window.innerWidth - 40}px`}
       >
         <ProgressBar
-          width={`${window.innerWidth - 20}px`}
+          width={`${window.innerWidth - 40}px`}
           percent={Math.min(100, Math.max(0, timerProgress))}
         />
       </Frame>
