@@ -29,4 +29,4 @@ dist-ssr
 *.sw?
 
 # Build output
-dist
+frontend/dist
