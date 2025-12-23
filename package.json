@@ -9,6 +9,7 @@
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:frontend": "cd frontend && npm run build",
     "build": "npm run build:frontend",
+    "start": "cd backend && NODE_ENV=production node server.js",
     "preview": "cd frontend && npm run preview"
   },
   "dependencies": {
