@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { WeatherData, Coordinates, NFCMessage } from '../types';
 import { wsService } from '../services/websocket';
+import { useWeather } from '../hooks/useWeather';
 
 interface AppContextType {
   // Weather
@@ -39,11 +40,16 @@ interface AppProviderProps {
 }
 
 export function AppProvider({ children }: AppProviderProps) {
-  // Weather state
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [weatherLoading, setWeatherLoading] = useState(true);
-  const [weatherError, setWeatherError] = useState<string | null>(null);
-  const [coordinates] = useState<Coordinates>(SAO_VICENTE_COORDINATES);
+  // Use the useWeather hook with React Query
+  const {
+    data: weather = null,
+    isLoading: weatherLoading,
+    error: weatherQueryError,
+  } = useWeather(SAO_VICENTE_COORDINATES);
+
+  const weatherError = weatherQueryError
+    ? 'Failed to fetch weather data'
+    : null;
 
   // Message state
   const [currentMessage, setCurrentMessage] = useState<NFCMessage | null>(null);
@@ -68,56 +74,6 @@ export function AppProvider({ children }: AppProviderProps) {
   const resetTimer = () => {
     setElapsedTime(0);
   };
-
-  // Weather effect
-  useEffect(() => {
-    async function fetchWeather() {
-      try {
-        setWeatherLoading(true);
-        const response = await fetch(
-          `https://api.open-meteo.com/v1/forecast?` +
-            `latitude=${coordinates.latitude}&longitude=${coordinates.longitude}` +
-            `&current=temperature_2m,wind_speed_10m,weather_code` +
-            `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max` +
-            `&timezone=America/Sao_Paulo`,
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch weather data');
-        }
-
-        const data = await response.json();
-
-        setWeather({
-          current: {
-            temperature: Math.round(data.current.temperature_2m),
-            windSpeed: Math.round(data.current.wind_speed_10m),
-            weatherCode: data.current.weather_code,
-            time: data.current.time,
-          },
-          daily: data.daily.time.map((date: string, index: number) => ({
-            date,
-            temperatureMax: Math.round(data.daily.temperature_2m_max[index]),
-            temperatureMin: Math.round(data.daily.temperature_2m_min[index]),
-            precipitationProbability:
-              data.daily.precipitation_probability_max[index],
-            windSpeed: Math.round(data.daily.wind_speed_10m_max[index]),
-            weatherCode: data.daily.weather_code[index],
-          })),
-        });
-        setWeatherError(null);
-      } catch (err) {
-        setWeatherError('Failed to fetch weather data');
-      } finally {
-        setWeatherLoading(false);
-      }
-    }
-
-    fetchWeather();
-    const interval = setInterval(fetchWeather, 1800000); // Update every 30 minutes
-
-    return () => clearInterval(interval);
-  }, [coordinates]);
 
   // Backend connection effect
   useEffect(() => {
