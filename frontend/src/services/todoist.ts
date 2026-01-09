@@ -33,16 +33,18 @@ class TodoistService {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     if (!this.apiToken) {
-      throw new Error('Todoist API token not configured. Please set VITE_TODOIST_API_TOKEN in your .env file.');
+      throw new Error(
+        'Todoist API token not configured. Please set VITE_TODOIST_API_TOKEN in your .env file.',
+      );
     }
 
     const response = await fetch(`${TODOIST_API_URL}${endpoint}`, {
       ...options,
       headers: {
-        'Authorization': `Bearer ${this.apiToken}`,
+        Authorization: `Bearer ${this.apiToken}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
@@ -61,7 +63,17 @@ class TodoistService {
 
   async getActiveTasks(): Promise<TodoistTask[]> {
     const tasks = await this.getTasks();
-    return tasks.filter(task => !task.is_completed);
+    return tasks.filter((task) => !task.is_completed);
+  }
+
+  async getTodayTasks(): Promise<TodoistTask[]> {
+    const allTasks = await this.getTasks();
+    const today = new Date().toISOString().split('T')[0]; // formato YYYY-MM-DD
+
+    return allTasks.filter((task) => {
+      if (!task.due) return false;
+      return task.due.date === today;
+    });
   }
 
   async createTask(params: CreateTaskParams): Promise<TodoistTask> {
@@ -71,7 +83,10 @@ class TodoistService {
     });
   }
 
-  async updateTask(id: string, params: Partial<CreateTaskParams>): Promise<TodoistTask> {
+  async updateTask(
+    id: string,
+    params: Partial<CreateTaskParams>,
+  ): Promise<TodoistTask> {
     return this.request<TodoistTask>(`/tasks/${id}`, {
       method: 'POST',
       body: JSON.stringify(params),
