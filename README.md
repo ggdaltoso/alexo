@@ -14,6 +14,7 @@ https://github.com/user-attachments/assets/89a0e55d-b3e0-4089-ac47-a3ae647a1f58
 - **Pixelated Clock**: A retro-style clock rendered on a canvas
 - **Calendar View**: Visual calendar interface
 - **Message Screen**: Real-time message display with NFC integration
+- **Todoist Integration**: Manage your tasks directly from the dashboard
 - **WebSocket Communication**: Real-time updates between frontend and backend
 - **Windows 95 Theme**: Styled using [`@react95/core`](https://react95.github.io/React95/) and custom CSS
 - **Optimized for Small Screens**: Designed to fit and function on a 3.5" display
@@ -86,6 +87,7 @@ PORT=3001
 NODE_ENV=development
 VITE_API_URL=http://localhost:3001
 VITE_WS_URL=ws://localhost:3001
+VITE_TODOIST_API_TOKEN=your_todoist_api_token_here
 ```
 
 **Production** (`.env.production` or update `.env`):
@@ -94,7 +96,17 @@ PORT=3001
 NODE_ENV=production
 VITE_API_URL=              # Empty = uses relative URLs
 VITE_WS_URL=ws://localhost:3001
+VITE_TODOIST_API_TOKEN=your_todoist_api_token_here
 ```
+
+#### Getting Your Todoist API Token
+
+To use the Todoist integration:
+
+1. Go to [Todoist Settings](https://app.todoist.com/app/settings/integrations)
+2. Scroll down to **Developer** section
+3. Copy your **API token**
+4. Add it to your `.env` file as `VITE_TODOIST_API_TOKEN`
 
 ### Development
 
