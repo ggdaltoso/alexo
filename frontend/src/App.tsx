@@ -4,6 +4,7 @@ import CalendarScreen from './screens/CalendarScreen';
 import MessageScreen from './screens/MessageScreen';
 import { Clock } from './screens/Clock';
 import { ExchangeRateScreen } from './screens/ExchangeRateScreen';
+import { TodoScreen } from './screens/TodoScreen';
 import { useApp } from './contexts';
 import { Loader } from 'lucide-react';
 import { Frame, ProgressBar } from '@react95/core';
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/calendar" element={<CalendarScreen />} />
         <Route path="/message" element={<MessageScreen />} />
         <Route path="/exchange" element={<ExchangeRateScreen />} />
+        <Route path="/todo" element={<TodoScreen />} />
       </Routes>
       <Frame
         position="fixed"
