@@ -30,9 +30,9 @@ const SAO_VICENTE_COORDINATES: Coordinates = {
 };
 
 // Routes for automatic and manual navigation (excluding message and calendar route)
-const NAVIGATION_ROUTES = ['/', '/forecast', '/exchange', '/todo'];
+const NAVIGATION_ROUTES = ['/todo'];
 
-const TIMER_DURATION = 10000; // 10 seconds
+const TIMER_DURATION = 100000; // 10 seconds
 const TIMER_INTERVAL = 100; // Update progress every 100ms
 
 interface AppProviderProps {
