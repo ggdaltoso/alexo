@@ -1,35 +1,16 @@
 import { useTodoist } from '../hooks/useTodoist';
-import { Frame, List, TaskBar, Button } from '@react95/core';
-import { Loader, RefreshCw } from 'lucide-react';
+import { Frame, Button, TitleBar, Fieldset, Checkbox } from '@react95/core';
+import { FilePen } from '@react95/icons';
+import { Loader } from 'lucide-react';
+import { Fragment } from 'react/jsx-runtime';
+
+console.log({ envs: import.meta.env });
 
 export function TodoScreen() {
   const { tasks, loading, error, refreshTasks } = useTodoist();
 
-  const getPriorityColor = (priority: number) => {
-    switch (priority) {
-      case 4:
-        return 'red';
-      case 3:
-        return 'orange';
-      case 2:
-        return 'blue';
-      default:
-        return 'gray';
-    }
-  };
-
-  const getPriorityLabel = (priority: number) => {
-    switch (priority) {
-      case 4:
-        return 'P1';
-      case 3:
-        return 'P2';
-      case 2:
-        return 'P3';
-      default:
-        return 'P4';
-    }
-  };
+  const activeTasks = tasks.filter((task) => !task.is_completed);
+  const completedTasks = tasks.filter((task) => task.is_completed);
 
   if (loading) {
     return (
@@ -52,68 +33,61 @@ export function TodoScreen() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#008080]">
-      {/* Title Bar */}
-      <TaskBar className="flex-shrink-0">
-        <div className="flex items-center justify-between w-full px-2">
-          <span className="font-bold">Todoist Tasks</span>
-          <Button size="sm" onClick={refreshTasks} disabled={loading}>
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-        </div>
-      </TaskBar>
-
+    <Frame
+      boxShadow="$out"
+      bgColor="$material"
+      p="$2"
+      gap="$2"
+      display="flex"
+      flexDirection="column"
+      h="100%"
+    >
+      <TitleBar
+        icon={<FilePen variant="16x16_4" className="!w-[24px] !h-[24px]" />}
+        className="text-[20px] h-[32px]"
+        title={`Today's Tasks (${activeTasks.length}/${tasks.length})`}
+      />
       {/* Main Content */}
-      <div className="flex-1 overflow-hidden p-2">
-        <Frame className="h-full flex flex-col" variant="window">
-          <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center">
-            <span className="font-bold text-sm">
-              Active Tasks ({tasks.length})
-            </span>
+      <Frame
+        p="$6"
+        className="h-full flex flex-col overflow-y-auto"
+        variant="window"
+      >
+        {tasks.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <p>No tasks for today</p>
           </div>
-
-          <div className="flex-1 overflow-y-auto p-2 bg-white">
-            {tasks.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <p>No active tasks</p>
-              </div>
-            ) : (
-              <List className="w-full">
-                {tasks.map((task) => (
-                  <li
-                    key={task.id}
-                    className="border-b border-gray-300 py-2 px-3 hover:bg-[#000080] hover:text-white cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className={`inline-block px-1 text-xs font-bold text-white rounded`}
-                        style={{
-                          backgroundColor: getPriorityColor(task.priority),
-                        }}
+        ) : (
+          <>
+            {/* Active Tasks */}
+            {activeTasks.length > 0 && (
+              <Fieldset
+                className="[&>legend]:text-[0.5rem] mb-4 h-full"
+                legend="Active Tasks"
+              >
+                <Frame display="flex" flexDirection="column">
+                  {activeTasks.map((task) => (
+                    <Fragment key={task.id}>
+                      <Checkbox
+                        className="text-xs h-4 [&>*:nth-child(-n+2)]:w-3 [&>*:nth-child(-n+2)]:h-3 [&>*:nth-child(3)]:p-2"
+                        checked={task.is_completed}
                       >
-                        {getPriorityLabel(task.priority)}
-                      </span>
-                      <span className="text-sm font-medium">
                         {task.content}
-                      </span>
-                    </div>
-                    {task.description && (
-                      <p className="text-xs text-gray-600 ml-6 mt-1 group-hover:text-gray-300">
-                        {task.description}
-                      </p>
-                    )}
-                    {task.due && (
-                      <p className="text-xs text-gray-500 ml-6 mt-1 group-hover:text-gray-300">
-                        📅 {task.due.string}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </List>
+                      </Checkbox>
+
+                      {task.description && (
+                        <p className="text-xs text-gray-600 ml-6 mt-1 mb-2">
+                          {task.description}
+                        </p>
+                      )}
+                    </Fragment>
+                  ))}
+                </Frame>
+              </Fieldset>
             )}
-          </div>
-        </Frame>
-      </div>
-    </div>
+          </>
+        )}
+      </Frame>
+    </Frame>
   );
 }
