@@ -21,7 +21,7 @@ export function useTodoist(): UseTodoistReturn {
     try {
       setLoading(true);
       setError(null);
-      const fetchedTasks = await todoistService.getActiveTasks();
+      const fetchedTasks = await todoistService.getTodayTasks();
       setTasks(fetchedTasks);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch tasks');
