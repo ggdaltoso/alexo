@@ -85,6 +85,7 @@ export function TodoScreen() {
                         className="text-xs h-4 [&>*:nth-child(-n+2)]:w-3 [&>*:nth-child(-n+2)]:h-3 [&>*:nth-child(3)]:p-2 [&>*:nth-child(2)]:!bg-[length:12px]"
                         checked={task.is_completed}
                         disabled={task.is_completed}
+                        readOnly
                       >
                         {task.content}
                       </Checkbox>
