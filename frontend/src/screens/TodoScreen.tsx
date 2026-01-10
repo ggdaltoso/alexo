@@ -1,10 +1,10 @@
 import { useTodoist } from '../hooks/useTodoist';
-import { Frame, Button, TitleBar, Fieldset, Checkbox } from '@react95/core';
+import { Frame, TitleBar, Fieldset, Checkbox } from '@react95/core';
 import { FilePen, Joy108 } from '@react95/icons';
 import { Loader } from 'lucide-react';
 
 export function TodoScreen() {
-  const { tasks, loading, error, refreshTasks } = useTodoist();
+  const { data: tasks = [], isLoading, error } = useTodoist();
 
   const activeTasks = tasks.filter((task) => !task.is_completed);
   const completedTasks = tasks.filter((task) => task.is_completed);
@@ -26,7 +26,7 @@ export function TodoScreen() {
     return dueDate < today;
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-full">
         <Loader className="w-8 h-8 animate-spin text-gray-600" />
@@ -39,8 +39,7 @@ export function TodoScreen() {
       <div className="p-4">
         <Frame className="p-4" variant="well">
           <h2 className="text-red-600 font-bold mb-2">Error</h2>
-          <p className="text-sm mb-4">{error}</p>
-          <Button onClick={refreshTasks}>Retry</Button>
+          <p className="text-sm mb-4">{error.message}</p>
         </Frame>
       </div>
     );
