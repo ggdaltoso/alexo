@@ -1,4 +1,5 @@
 const TODOIST_API_URL = 'https://api.todoist.com/rest/v2';
+const TODOIST_SYNC_API_URL = 'https://api.todoist.com/sync/v9';
 
 export interface TodoistTask {
   id: string;
@@ -16,7 +17,21 @@ export interface TodoistTask {
   created_at: string;
 }
 
+// Sync API types for completed tasks
+interface CompletedItem {
+  id: string;
+  task_id: string;
+  content: string;
+  completed_at: string;
+  project_id: string;
+  note_count: number;
+  notes: unknown[];
+}
 
+interface CompletedTasksResponse {
+  items: CompletedItem[];
+  has_more: boolean;
+}
 
 class TodoistService {
   private apiToken: string;
@@ -67,9 +82,59 @@ class TodoistService {
   }
 
   async getTodayTasks(): Promise<TodoistTask[]> {
-    // Busca tarefas de hoje usando o filtro da API do Todoist
-    // Nota: A API v2 do Todoist retorna apenas tarefas não completadas por padrão
-    return this.getTasksByFilter('today');
+    // Fetch active and completed tasks for today in parallel
+    const [activeTasks, completedTasks] = await Promise.all([
+      this.getTasksByFilter('today'),
+      this.getCompletedTasksToday(),
+    ]);
+
+    return [...activeTasks, ...completedTasks];
+  }
+
+  private async getCompletedTasksToday(): Promise<TodoistTask[]> {
+    try {
+      const today = new Date();
+      const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
+      const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+
+      const response = await fetch(
+        `${TODOIST_SYNC_API_URL}/completed/get_all`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.apiToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            since: startOfDay,
+            until: endOfDay,
+            limit: 200,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        console.error('Failed to fetch completed tasks:', response.statusText);
+        return [];
+      }
+
+      const data: CompletedTasksResponse = await response.json();
+
+      // Convert CompletedItem to TodoistTask
+      return data.items.map((item) => ({
+        id: item.task_id,
+        content: item.content,
+        description: '',
+        is_completed: true,
+        priority: 1,
+        project_id: item.project_id,
+        labels: [],
+        created_at: item.completed_at,
+      }));
+    } catch (error) {
+      console.error('Error fetching completed tasks:', error);
+      return []; // Return empty array on error
+    }
   }
 }
 
