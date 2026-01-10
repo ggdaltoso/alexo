@@ -84,7 +84,7 @@ class TodoistService {
   async getTodayTasks(): Promise<TodoistTask[]> {
     // Fetch active and completed tasks for today in parallel
     const [activeTasks, completedTasks] = await Promise.all([
-      this.getTasksByFilter('today'),
+      this.getTasksByFilter('today | overdue'),
       this.getCompletedTasksToday(),
     ]);
 
