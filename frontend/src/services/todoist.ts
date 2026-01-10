@@ -16,13 +16,7 @@ export interface TodoistTask {
   created_at: string;
 }
 
-export interface CreateTaskParams {
-  content: string;
-  description?: string;
-  priority?: number;
-  due_string?: string;
-  project_id?: string;
-}
+
 
 class TodoistService {
   private apiToken: string;
@@ -61,54 +55,19 @@ class TodoistService {
     return this.request<TodoistTask[]>('/tasks');
   }
 
+  async getTasksByFilter(filter: string): Promise<TodoistTask[]> {
+    return this.request<TodoistTask[]>(`/tasks?filter=${encodeURIComponent(filter)}`);
+  }
+
   async getActiveTasks(): Promise<TodoistTask[]> {
     const tasks = await this.getTasks();
     return tasks.filter((task) => !task.is_completed);
   }
 
   async getTodayTasks(): Promise<TodoistTask[]> {
-    const allTasks = await this.getTasks();
-    const today = new Date().toISOString().split('T')[0]; // formato YYYY-MM-DD
-
-    return allTasks.filter((task) => {
-      if (!task.due) return false;
-      return task.due.date === today;
-    });
-  }
-
-  async createTask(params: CreateTaskParams): Promise<TodoistTask> {
-    return this.request<TodoistTask>('/tasks', {
-      method: 'POST',
-      body: JSON.stringify(params),
-    });
-  }
-
-  async updateTask(
-    id: string,
-    params: Partial<CreateTaskParams>,
-  ): Promise<TodoistTask> {
-    return this.request<TodoistTask>(`/tasks/${id}`, {
-      method: 'POST',
-      body: JSON.stringify(params),
-    });
-  }
-
-  async completeTask(id: string): Promise<void> {
-    await this.request<void>(`/tasks/${id}/close`, {
-      method: 'POST',
-    });
-  }
-
-  async reopenTask(id: string): Promise<void> {
-    await this.request<void>(`/tasks/${id}/reopen`, {
-      method: 'POST',
-    });
-  }
-
-  async deleteTask(id: string): Promise<void> {
-    await this.request<void>(`/tasks/${id}`, {
-      method: 'DELETE',
-    });
+    // Busca tarefas de hoje usando o filtro da API do Todoist
+    // Nota: A API v2 do Todoist retorna apenas tarefas não completadas por padrão
+    return this.getTasksByFilter('today');
   }
 }
 
