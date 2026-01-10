@@ -62,7 +62,7 @@ export function TodoScreen() {
             {/* Active Tasks */}
             {activeTasks.length > 0 && (
               <Fieldset
-                className="[&>legend]:text-[0.5rem] mb-4 h-full"
+                className="[&>legend]:text-[0.5rem] mb-4"
                 legend="Active Tasks"
               >
                 <Frame display="flex" flexDirection="column">
@@ -77,6 +77,35 @@ export function TodoScreen() {
 
                       {task.description && (
                         <p className="text-xs text-gray-600 ml-6 mt-1 mb-2">
+                          {task.description}
+                        </p>
+                      )}
+                    </Fragment>
+                  ))}
+                </Frame>
+              </Fieldset>
+            )}
+
+            {/* Completed Tasks */}
+            {completedTasks.length > 0 && (
+              <Fieldset
+                className="[&>legend]:text-[0.5rem] mt-4"
+                legend="Completed Tasks"
+              >
+                <Frame display="flex" flexDirection="column">
+                  {completedTasks.map((task) => (
+                    <Fragment key={task.id}>
+                      <Checkbox
+                        className="text-xs h-4 [&>*:nth-child(-n+2)]:w-3 [&>*:nth-child(-n+2)]:h-3 [&>*:nth-child(3)]:p-2"
+                        checked={task.is_completed}
+                      >
+                        <span className="line-through text-gray-500">
+                          {task.content}
+                        </span>
+                      </Checkbox>
+
+                      {task.description && (
+                        <p className="text-xs text-gray-400 ml-6 mt-1 mb-2 line-through">
                           {task.description}
                         </p>
                       )}
