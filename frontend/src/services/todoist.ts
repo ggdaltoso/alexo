@@ -56,7 +56,9 @@ class TodoistService {
   }
 
   async getTasksByFilter(filter: string): Promise<TodoistTask[]> {
-    return this.request<TodoistTask[]>(`/tasks?filter=${encodeURIComponent(filter)}`);
+    return this.request<TodoistTask[]>(
+      `/tasks?filter=${encodeURIComponent(filter)}`,
+    );
   }
 
   async getActiveTasks(): Promise<TodoistTask[]> {
