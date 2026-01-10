@@ -1,15 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { todoistService, TodoistTask, CreateTaskParams } from '../services/todoist';
+import { todoistService, TodoistTask } from '../services/todoist';
 
 interface UseTodoistReturn {
   tasks: TodoistTask[];
   loading: boolean;
   error: string | null;
   refreshTasks: () => Promise<void>;
-  createTask: (params: CreateTaskParams) => Promise<void>;
-  completeTask: (id: string) => Promise<void>;
-  reopenTask: (id: string) => Promise<void>;
-  deleteTask: (id: string) => Promise<void>;
 }
 
 export function useTodoist(): UseTodoistReturn {
@@ -31,50 +27,6 @@ export function useTodoist(): UseTodoistReturn {
     }
   }, []);
 
-  const createTask = useCallback(async (params: CreateTaskParams) => {
-    try {
-      setError(null);
-      await todoistService.createTask(params);
-      await refreshTasks();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create task');
-      throw err;
-    }
-  }, [refreshTasks]);
-
-  const completeTask = useCallback(async (id: string) => {
-    try {
-      setError(null);
-      await todoistService.completeTask(id);
-      await refreshTasks();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to complete task');
-      throw err;
-    }
-  }, [refreshTasks]);
-
-  const reopenTask = useCallback(async (id: string) => {
-    try {
-      setError(null);
-      await todoistService.reopenTask(id);
-      await refreshTasks();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reopen task');
-      throw err;
-    }
-  }, [refreshTasks]);
-
-  const deleteTask = useCallback(async (id: string) => {
-    try {
-      setError(null);
-      await todoistService.deleteTask(id);
-      await refreshTasks();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete task');
-      throw err;
-    }
-  }, [refreshTasks]);
-
   useEffect(() => {
     refreshTasks();
   }, [refreshTasks]);
@@ -84,9 +36,5 @@ export function useTodoist(): UseTodoistReturn {
     loading,
     error,
     refreshTasks,
-    createTask,
-    completeTask,
-    reopenTask,
-    deleteTask,
   };
 }
