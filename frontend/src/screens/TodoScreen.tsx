@@ -66,7 +66,7 @@ export function TodoScreen() {
         className="h-full flex flex-col overflow-y-auto"
         variant="window"
       >
-        {tasks.length !== 0 ? (
+        {tasks.length === 0 ? (
           <div className="text-sm text-center py-9">
             <p>Sem tarefas</p>
           </div>
