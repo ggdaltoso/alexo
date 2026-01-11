@@ -1,6 +1,6 @@
 import { useTodoist } from '../hooks/useTodoist';
 import { Frame, TitleBar, Fieldset, Checkbox } from '@react95/core';
-import { FilePen, Joy108 } from '@react95/icons';
+import { Faxcover108, FilePen, Joy108 } from '@react95/icons';
 import { Loader } from 'lucide-react';
 
 export function TodoScreen() {
@@ -56,9 +56,9 @@ export function TodoScreen() {
       h="100%"
     >
       <TitleBar
-        icon={<FilePen variant="16x16_4" className="!w-[24px] !h-[24px]" />}
-        className="text-[20px] h-[32px]"
-        title={`Today's Tasks (${activeTasks.length}/${tasks.length})`}
+        icon={<Faxcover108 variant="16x16_4" className="!w-[24px] !h-[24px]" />}
+        className="text-[20px] h-[28px]"
+        title={`Tarefas de hoje (${completedTasks.length}/${tasks.length})`}
       />
       {/* Main Content */}
       <Frame
@@ -66,13 +66,13 @@ export function TodoScreen() {
         className="h-full flex flex-col overflow-y-auto"
         variant="window"
       >
-        {tasks.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>No tasks for today</p>
+        {tasks.length !== 0 ? (
+          <div className="text-sm text-center py-9">
+            <p>Sem tarefas</p>
           </div>
         ) : (
           <>
-            {activeTasks.length > 0 && (
+            {tasks.length > 0 && (
               <Fieldset
                 className="[&>legend]:text-[0.5rem] mb-4 h-full"
                 legend="Tarefas"
