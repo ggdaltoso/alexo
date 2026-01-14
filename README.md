@@ -7,7 +7,6 @@ Alexo is a weather dashboard styled with a Windows 95 aesthetic, designed to run
 https://github.com/user-attachments/assets/89a0e55d-b3e0-4089-ac47-a3ae647a1f58
 
 
-
 ## Features
 
 - **Weather Information**: Displays current weather and a 5-day forecast using the Open-Meteo API
@@ -18,6 +17,21 @@ https://github.com/user-attachments/assets/89a0e55d-b3e0-4089-ac47-a3ae647a1f58
 - **WebSocket Communication**: Real-time updates between frontend and backend
 - **Windows 95 Theme**: Styled using [`@react95/core`](https://react95.github.io/React95/) and custom CSS
 - **Optimized for Small Screens**: Designed to fit and function on a 3.5" display
+
+## Screens
+
+| Clock | Weather Forecast |
+|:---:|:---:|
+| ![Clock Screen](screens/clock.png) | ![Forecast Screen](screens/forecast.png) |
+
+| Exchange Rate | NFC Message |
+|:---:|:---:|
+| ![Exchange Rate Screen](screens/exchange-rate.png) | ![NFC Message Screen](screens/nfc-message.png) |
+
+| Todoist |
+|:---:|
+| ![Todoist Screen](screens/todoist.png) |
+
 
 ## Architecture
 
