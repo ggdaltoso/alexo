@@ -31,19 +31,23 @@ export const ForecastDashboard = React.memo(() => {
       >
         <WeatherIcon
           code={current.weatherCode}
-          className="w-12 h-12 mr-6 text-gray-600"
+          className="w-12 h-12 mr-1 text-gray-600"
         />
-        <div className="text-4xl font-normal mr-2">{current.temperature}°</div>
-        <div className="flex align-end text-sm space-x-1 mt-2">
-          <div className="flex flex-col">
-            <span className="text-[0.5rem] leading-none text-center">min</span>
-            <span className="text-gray-500">{today.temperatureMin}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-medium text-[0.5rem] leading-none text-center">
-              max
-            </span>
-            <span className="font-medium">{today.temperatureMax}</span>
+        <div className="flex flex-col">
+          <div className="text-2xl font-normal">{current.temperature}°</div>
+          <div className="flex align-end text-sm space-x-1">
+            <div className="flex flex-col">
+              <span className="text-[0.5rem] leading-none text-center">
+                min
+              </span>
+              <span className="text-gray-500">{today.temperatureMin}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-medium text-[0.5rem] leading-none text-center">
+                max
+              </span>
+              <span className="font-medium">{today.temperatureMax}</span>
+            </div>
           </div>
         </div>
       </Frame>

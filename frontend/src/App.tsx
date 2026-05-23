@@ -20,26 +20,22 @@ export default function App() {
   }
 
   return (
-    <>
-      <Routes>
-        <Route path="/" element={<Clock />} />
-        <Route path="/forecast" element={<ForecastDashboard />} />
-        <Route path="/calendar" element={<CalendarScreen />} />
-        <Route path="/message" element={<MessageScreen />} />
-        <Route path="/exchange" element={<ExchangeRateScreen />} />
-      </Routes>
-      <Frame
-        position="fixed"
-        bottom="10px"
-        left="10px"
-        right="10px"
-        width={`${window.innerWidth - 40}px`}
-      >
+    <div className="flex flex-col h-full gap-2">
+      <div className="flex-1 overflow-hidden">
+        <Routes>
+          <Route path="/" element={<Clock />} />
+          <Route path="/forecast" element={<ForecastDashboard />} />
+          <Route path="/calendar" element={<CalendarScreen />} />
+          <Route path="/message" element={<MessageScreen />} />
+          <Route path="/exchange" element={<ExchangeRateScreen />} />
+        </Routes>
+      </div>
+      <Frame width={`${window.innerWidth / 2}px`}>
         <ProgressBar
-          width={`${window.innerWidth - 40}px`}
+          width={`${window.innerWidth / 2}px`}
           percent={Math.min(100, Math.max(0, timerProgress))}
         />
       </Frame>
-    </>
+    </div>
   );
 }
