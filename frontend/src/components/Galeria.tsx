@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_CONFIG } from '../config/api';
+import { Frame } from '@react95/core/Frame';
+import { TitleBar } from '@react95/core/TitleBar';
+import { Wangimg128 } from '@react95/icons';
 
 interface GalleryItem {
   id: string;
   filename: string;
   url: string;
+  order: number;
   uploadedAt: number;
 }
 
@@ -22,7 +26,7 @@ export function Galeria() {
       const res = await fetch(`${API_CONFIG.BASE_URL}/api/gallery`);
       if (!res.ok) return;
       const data: GalleryItem[] = await res.json();
-      setImages(data);
+      setImages([...data].sort((a, b) => a.order - b.order));
     } catch {
       // silently ignore network errors
     }
@@ -54,9 +58,19 @@ export function Galeria() {
 
   if (images.length === 0) {
     return (
-      <div className="w-1/2 h-full shrink-0 bg-[#111] flex items-center justify-center">
-        <span className="text-[#444] text-[0.5rem] text-center">Galeria vazia</span>
-      </div>
+      <Frame
+        className="w-1/2 h-full flex flex-col shrink-0 overflow-hidden relative bg-black"
+        p="$1"
+        boxShadow="$out"
+      >
+        <TitleBar title="Galeria" icon={<Wangimg128 variant="16x16_4" />} />
+
+        <Frame className="flex-1 min-h-0 overflow-hidden" p="$3" pr="$4" bgColor="$material">
+          <Frame className="w-full h-full flex items-center justify-center overflow-hidden" bg="white" boxShadow="$in" pt="$2" pl="$2">
+            <span>Galeria vazia</span>
+          </Frame>
+        </Frame>
+      </Frame>
     );
   }
 
@@ -64,13 +78,23 @@ export function Galeria() {
   const src = img.url.startsWith('http') ? img.url : `${API_CONFIG.BASE_URL}${img.url}`;
 
   return (
-    <div className="w-1/2 h-full shrink-0 overflow-hidden relative bg-black">
-      <img
-        key={img.id}
-        src={src}
-        alt=""
-        className={`w-full h-full object-cover block transition-opacity duration-[600ms] ${fade ? 'opacity-100' : 'opacity-0'}`}
-      />
-    </div>
+    <Frame
+      className="w-1/2 h-full flex flex-col shrink-0 overflow-hidden relative bg-black"
+      p="$1"
+      boxShadow="$out"
+    >
+      <TitleBar title="Galeria" icon={<Wangimg128 variant="16x16_4" />} />
+
+      <Frame className="flex-1 min-h-0 overflow-hidden" p="$3" pr="$4" as="figure" bgColor="$material">
+        <Frame className="w-full h-full overflow-hidden" bg="white" boxShadow="$in" pt="$1" pl="$1">
+          <img
+            key={img.id}
+            src={src}
+            alt=""
+            className={`w-full h-full object-cover block transition-opacity duration-[600ms] ${fade ? 'opacity-100' : 'opacity-0'}`}
+          />
+        </Frame>
+      </Frame>
+    </Frame>
   );
 }
