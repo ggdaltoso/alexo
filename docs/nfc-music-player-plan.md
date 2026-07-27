@@ -5,7 +5,7 @@
 O Alexo hoje já tem um pipeline NFC "acidental": um dispositivo externo (celular/app) faz `POST /api/nfc` com `{type, message}` e o backend retransmite via WebSocket para mostrar uma mensagem na tela por 10s. Essa feature é totalmente separada da nova: agora queremos um **leitor NFC físico ligado direto no Pi Zero W**, controlado pelo Node, que ao detectar uma tag toca uma música mapeada àquela tag (e pausa quando a tag é removida) — um efeito "caixinha tipo Tonie/Yoto". O hardware já foi decidido em conversa anterior:
 
 - **Áudio**: MAX98357A (DAC I2S + ampli Classe D) + speaker passivo 4Ω/3W.
-- **Leitura NFC**: módulo PN532 via I2C (biblioteca `pn532-i2c`), que emite eventos de tag presente/removida — só funciona com tags **Mifare Classic**, não NTAG213/215 (importante na hora de comprar as tags).
+- **Leitura NFC**: módulo PN532 via **UART/serial** (biblioteca npm `pn532`, pacote `techniq/node-pn532`), usando `scanTag()` em polling — suporta **NTAG (203/213/215/216) e Mifare Ultralight**, mas explicitamente **não suporta Mifare Classic**. Essa lib tem suporte a I2C, mas está marcado como WIP há quase 10 anos sem retomada — por isso a escolha é UART, o caminho testado de verdade pela lib. Sem evento nativo de "tag removida": a detecção de presença/ausência é implementada por nós, comparando UID entre polls sucessivos.
 - **Playback**: `mpv --idle` controlado via socket IPC JSON, usando o pacote `node-mpv`.
 - **Gestão de conteúdo**: página admin HTML server-rendered (`/admin/music`), no mesmo molde da `/admin/gallery` que já existe.
 
@@ -21,7 +21,7 @@ Essas duas features NFC (mensagem via HTTP externo vs. música via leitor físic
 
 ### Novos módulos (mesmo estilo de `backend/ws.js`/`backend/state.js` — arquivos pequenos e focados)
 
-- **`backend/nfcReader.js`**: só cuida do hardware. `init()` abre o barramento I2C (`pn532-i2c`) dentro de `try/catch` — se falhar (ex.: rodando num Mac/dev sem `/dev/i2c-1`), loga aviso e não faz nada, sem derrubar o servidor. Emite (`EventEmitter`) `'tag-present'`/`'tag-vanish'` com o UID normalizado, traduzindo os eventos `'tag'`/`'vanish'` da lib.
+- **`backend/nfcReader.js`**: só cuida do hardware. `init()` abre a porta serial (`serialport` + `pn532`) dentro de `try/catch` — se a porta não existir (ex.: rodando num Mac/dev sem o UART), loga aviso e não faz nada, sem derrubar o servidor. Faz um `setInterval` curto (~300ms) chamando `rfid.scanTag()`; compara o UID retornado com o último UID visto: UID novo → emite `'tag-present'`; UID que sumiu (poll retorna sem tag) → emite `'tag-vanish'`. Essa lógica de presença/ausência é nossa, já que a lib não expõe um evento `vanish` pronto (diferente do que a `pn532-i2c` oferecia).
 - **`backend/musicPlayer.js`**: só cuida do mpv. `init()` sobe `mpv --idle --input-ipc-server=<path>` via `node-mpv`. Métodos `play(track)`, `pause()`, `resume()`, `restart()`, `setVolume(v)`, `getStatus()`. Emite `'status'` com `{trackId, title, filename, isPlaying, position, duration, volume}` a cada mudança real reportada pelo mpv (play/pause/fim de faixa/seek).
 - **`backend/musicController.js`**: a cola — é o único módulo que enxerga `state`, `wsServer`, `musicPlayer` e `nfcReader` ao mesmo tempo.
   - `tag-present` → busca `state.getTagMapping(uid)`; se existir, `musicPlayer.play(track)` + `state.setPlayerState({activeTagUid: uid, trackId})`.
@@ -95,7 +95,7 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 ## Verificação
 
 **Sem hardware físico (dev machine):**
-1. `nfcReader.init()` deve falhar graciosamente sem I2C disponível — servidor sobe normalmente.
+1. `nfcReader.init()` deve falhar graciosamente sem a porta serial disponível — servidor sobe normalmente.
 2. Instalar `mpv` localmente e validar o socket IPC manualmente antes de confiar no wrapper (`mpv --idle --input-ipc-server=/tmp/mpvsocket &`, depois `echo '{"command":["loadfile","test.mp3"]}' | socat - /tmp/mpvsocket`).
 3. Via `/admin/music`, subir um MP3 de teste e mapear um UID fictício.
 4. Simular o scan pelo endpoint dev-only:
@@ -107,10 +107,11 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 6. Regressão do bug corrigido: disparar `POST /api/nfc` (mensagem) e um upload de galeria enquanto a música está parada — confirmar que `gallery_updated` não força mais navegação pra `/message`, e que mensagem "ganha" se colidir com um tag-present.
 
 **Só no Pi real:**
-- I2C: `dtparam=i2c_arm=on`, depois `i2cdetect -y 1` deve mostrar o PN532.
-- Tags físicas precisam ser **Mifare Classic** (não NTAG) — checar antes de comprar.
+- Colocar a chave do módulo PN532 no modo **HSU/UART** (não I2C).
+- UART: no Pi Zero W, o Bluetooth ocupa o UART primário (PL011) por padrão, deixando só a mini-UART (`/dev/ttyS0`) exposta nos pinos GPIO — testar com `/dev/ttyS0` primeiro (é o mesmo caminho que o README da lib recomenda pro Pi 3). Se a mini-UART se mostrar instável (o clock dela varia com a frequência da CPU), o fallback é `dtoverlay=disable-bt` no `/boot/config.txt` pra liberar o UART completo (PL011) nos pinos, desativando o Bluetooth do Pi (sem perda pro projeto, já que o Zero W usa WiFi pra tudo, não Bluetooth).
+- Tags físicas devem ser **NTAG (213/215/216) ou Mifare Ultralight** — os NTAG215 que o usuário já possui servem. O cartão S50 (Mifare Classic) que veio de brinde no kit do PN532 **não vai funcionar** com essa lib — guardar pra outro uso ou descartar.
 - Saída ALSA do MAX98357A: após o `dtoverlay` de DAC + reboot, `aplay -l` pra achar o índice da placa e configurar em `musicPlayer.js` (`--audio-device=alsa/hw:X,0`).
-- Instalar `pn532-i2c`/`node-mpv` primeiro isolado no Pi (`npm install` numa pasta de teste) — `i2c-bus` é addon nativo e o Pi Zero é ARMv6/Node 14, então a compilação pode não ter binário pré-compilado e demorar; fazer esse smoke-test cedo evita descobrir o problema só na hora de integrar tudo.
+- Instalar `pn532`/`serialport`/`node-mpv` primeiro isolado no Pi (`npm install` numa pasta de teste) antes de integrar tudo — `serialport` também compila addon nativo, e o Pi Zero é ARMv6/Node 14, então vale confirmar cedo que a instalação funciona sem binário pré-compilado disponível.
 - Sem supervisor pro `mpv`: se o processo Express cair, o `mpv` cai junto (filho do processo) — aceitável pro v1, sem retry automático.
 
 ## Arquivos críticos
@@ -129,5 +130,5 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 - Raspberry Pi Zero W (já em posse)
 - MAX98357A — DAC I2S + amplificador Classe D
 - Mini speaker passivo 4Ω / 3W
-- Módulo leitor PN532 V3 (I2C/SPI/HSU via chave seletora) — comprado: [TENSTAR ROBOT PN532 NFC RFID Wireless Module V3, AliExpress](https://pt.aliexpress.com/item/1005005973913526.html), R$18,62, já vem com 1 cartão S50 (Mifare Classic 1K) incluso
-- Tags/cartões **Mifare Classic** (não NTAG213/215 — incompatíveis com a lib escolhida). O cartão S50 incluso no kit do PN532 já cobre o primeiro teste; comprar mais conforme necessário
+- Módulo leitor PN532 V3 (I2C/SPI/HSU via chave seletora, usar em modo **HSU/UART**) — comprado: [TENSTAR ROBOT PN532 NFC RFID Wireless Module V3, AliExpress](https://pt.aliexpress.com/item/1005005973913526.html), R$18,62, já vem com 1 cartão S50 (Mifare Classic) incluso — **não compatível com a lib escolhida**, serve só de curiosidade/outro uso
+- Tags: os **NTAG215** que o usuário já possui — compatíveis com a lib `pn532` (NTAG/Mifare Ultralight). Não usar Mifare Classic com essa lib.
