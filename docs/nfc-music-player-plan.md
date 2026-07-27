@@ -129,5 +129,5 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 - Raspberry Pi Zero W (já em posse)
 - MAX98357A — DAC I2S + amplificador Classe D
 - Mini speaker passivo 4Ω / 3W
-- Módulo leitor PN532 (interface I2C)
-- Tags/cartões **Mifare Classic** (não NTAG213/215 — incompatíveis com a lib escolhida)
+- Módulo leitor PN532 V3 (I2C/SPI/HSU via chave seletora) — comprado: [TENSTAR ROBOT PN532 NFC RFID Wireless Module V3, AliExpress](https://pt.aliexpress.com/item/1005005973913526.html), R$18,62, já vem com 1 cartão S50 (Mifare Classic 1K) incluso
+- Tags/cartões **Mifare Classic** (não NTAG213/215 — incompatíveis com a lib escolhida). O cartão S50 incluso no kit do PN532 já cobre o primeiro teste; comprar mais conforme necessário
