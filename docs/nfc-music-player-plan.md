@@ -13,6 +13,85 @@ Escopo v1: **1 tag = 1 música** (sem playlist/fila). "Pular música" não tem a
 
 Essas duas features NFC (mensagem via HTTP externo vs. música via leitor físico) devem ficar **completamente desacopladas** no backend e no frontend — mesma tecnologia de transporte (WebSocket), fluxos de estado independentes.
 
+## Diagrama
+
+Fluxo lógico (hardware físico + módulos de software):
+
+```mermaid
+flowchart TB
+    subgraph hw["Componentes físicos"]
+        TAG["NFC Tag<br/>(NTAG213/215/216)"]
+        PN532["PN532 V3 reader<br/>(HSU/UART mode)"]
+        PI["Raspberry Pi Zero W"]
+        DAC["MAX98357A<br/>I2S DAC + Class-D amp"]
+        SPK["Passive speaker<br/>4Ω / 3W"]
+    end
+
+    TAG -- "NFC induction<br/>13.56MHz" --> PN532
+    PN532 -- "UART (TX/RX/GND/3V3)" --> PI
+    PI -- "I2S (BCLK/LRC/DIN/GND/VIN)" --> DAC
+    DAC -- "speaker wire" --> SPK
+
+    subgraph sw["Backend (Node.js, rodando no Pi)"]
+        READER["nfcReader.js<br/>polls scanTag()"]
+        CTRL["musicController.js"]
+        PLAYER["musicPlayer.js<br/>(node-mpv)"]
+        MPV[["mpv --idle process"]]
+        STATE["state.js"]
+        WS["ws.js<br/>WebSocket broadcast"]
+    end
+
+    PI -. serial device .-> READER
+    READER -- "tag-present / tag-vanish" --> CTRL
+    CTRL --> STATE
+    CTRL -- "play / pause / resume" --> PLAYER
+    PLAYER -- "IPC socket" --> MPV
+    MPV -- "audio via ALSA" --> DAC
+    CTRL -- "music_playback_state" --> WS
+
+    subgraph fe["Frontend (React, mesmo dispositivo)"]
+        APPCTX["AppContext.tsx"]
+        SCREEN["MusicScreen.tsx"]
+    end
+
+    WS -- "WebSocket" --> APPCTX --> SCREEN
+```
+
+### Fiação (pinout GPIO)
+
+Conexões físicas no header de 40 pinos do Pi Zero W (os pinos de I2S e UART são fixos pelo SoC, não é escolha de projeto):
+
+```
+                     Raspberry Pi Zero W — GPIO header (40 pins)
+                     ──────────────────────────────────────────
+
+  PN532 V3 (modo HSU/UART)                  MAX98357A (I2S DAC + amp)
+  ─────────────────────────                 ──────────────────────────
+  VCC   <───────────────  3V3        (pin 1)  VIN   <───────────────  5V         (pin 2)
+  GND   <───────────────  GND        (pin 6)  GND   <───────────────  GND        (pin 9)
+  RXI   <───────────────  TXD/GPIO14 (pin 8)
+  TXO   ───────────────>  RXD/GPIO15 (pin 10)
+                                               BCLK  <───────────────  GPIO18     (pin 12)
+                                               LRC   <───────────────  GPIO19     (pin 35)
+                                               DIN   <───────────────  GPIO21     (pin 40, "DOUT")
+                                                        │
+                                                        ▼
+                                               speaker+ / speaker-
+                                                        │
+                                                        ▼
+                                               ┌───────────────────┐
+                                               │  Passive speaker   │
+                                               │     4Ω / 3W         │
+                                               └───────────────────┘
+
+  NFC tag (NTAG213/215/216) ──► sem fio, só aproximação 13.56MHz da antena do PN532
+```
+
+Notas:
+- **Ressalva de UART**: no Pi Zero W, o Bluetooth ocupa o UART primário (PL011) por padrão, deixando só a mini-UART (`/dev/ttyS0`) exposta em GPIO14/15. Testar essa primeiro; se instável, adicionar `dtoverlay=disable-bt` em `/boot/config.txt` pra liberar o UART completo (ver seção de verificação abaixo).
+- **VCC do PN532**: usar 3.3V pra bater com o nível lógico do Pi, a menos que o manual do módulo específico confirme que os pinos de UART são tolerantes a 5V.
+- **DIN do MAX98357A** se conecta ao **DOUT** de I2S do Pi (GPIO21) — o Pi transmite os dados de áudio, o DAC só recebe.
+
 ## Bug pré-existente a corrigir como pré-requisito
 
 `frontend/src/contexts/AppContext.tsx:92-94` trata **qualquer** broadcast do WebSocket como se fosse uma `NFCMessage` (`setCurrentMessage(message)` sem checar `type`), incluindo o já existente `{type:'gallery_updated'}`, que não tem `message`/`timestamp`. Isso nunca explodiu na prática porque a Galeria faz polling e não escuta o WS — mas qualquer broadcast novo (como `music_playback_state`) vai colidir com o fluxo de interrupção de `/message` se isso não for corrigido primeiro.
