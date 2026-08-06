@@ -62,29 +62,34 @@ flowchart TB
 Conexões físicas no header de 40 pinos do Pi Zero W (os pinos de I2S e UART são fixos pelo SoC, não é escolha de projeto):
 
 ```
-                     Raspberry Pi Zero W — GPIO header (40 pins)
-                     ──────────────────────────────────────────
+Raspberry Pi Zero W — GPIO header (40 pinos)
+─────────────────────────────────────────────
 
-  PN532 V3 (modo HSU/UART)                  MAX98357A (I2S DAC + amp)
-  ─────────────────────────                 ──────────────────────────
-  VCC   <───────────────  3V3        (pin 1)  VIN   <───────────────  5V         (pin 2)
-  GND   <───────────────  GND        (pin 6)  GND   <───────────────  GND        (pin 9)
-  RXI   <───────────────  TXD/GPIO14 (pin 8)
-  TXO   ───────────────>  RXD/GPIO15 (pin 10)
-                                               BCLK  <───────────────  GPIO18     (pin 12)
-                                               LRC   <───────────────  GPIO19     (pin 35)
-                                               DIN   <───────────────  GPIO21     (pin 40, "DOUT")
-                                                        │
-                                                        ▼
-                                               speaker+ / speaker-
-                                                        │
-                                                        ▼
-                                               ┌───────────────────┐
-                                               │  Passive speaker   │
-                                               │     4Ω / 3W         │
-                                               └───────────────────┘
+PN532 V3 — header de 4 furos (chaves SW1=0, SW2=0 → modo HSU)
+  Esse header é dual-purpose: rótulos SDA/SCL impressos na frente (modo I2C),
+  rótulos TXD/RXD impressos no verso da placa (modo HSU) — mesmos furos físicos.
 
-  NFC tag (NTAG213/215/216) ──► sem fio, só aproximação 13.56MHz da antena do PN532
+    VCC             <──  3V3          (pin 1)
+    GND             <──  GND          (pin 6)
+    SDA (= TXD/HSU) ──►  RXD/GPIO15   (pin 10)
+    SCL (= RXD/HSU) <──  TXD/GPIO14   (pin 8)
+
+  Header de 8 furos (SCK/MISO/MOSI/SS/VCC/GND/IRQ/RSTO) — usado só em modo SPI,
+  sem uso no projeto (IRQ/RSTO não são necessários pro polling via scanTag()).
+
+MAX98357A — I2S DAC + amplificador Classe D (7 pinos, na ordem física do módulo)
+
+    LRC   <──  GPIO19     (pin 35)
+    BCLK  <──  GPIO18     (pin 12)
+    DIN   <──  GPIO21     (pin 40, "DOUT")
+    GAIN        sem conexão (flutuando = ganho padrão de 9dB)
+    SD          sem conexão (pull-up interno = ampli sempre ligado)
+    GND   <──  GND        (pin 9)
+    VIN   <──  5V         (pin 2)
+
+    saída speaker+/speaker- ──► Passive speaker 4Ω / 3W
+
+NFC tag (NTAG213/215/216) ──► sem fio, só aproximação 13.56MHz da antena do PN532
 ```
 
 Notas:
