@@ -192,10 +192,11 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 
 **Só no Pi real:**
 - Colocar a chave do módulo PN532 no modo **HSU/UART** (não I2C).
+- **Smoke test do PN532 antes de qualquer código do projeto**: `node backend/scripts/pn532-smoke-test.js` (`--verbose` mostra os bytes crus, `-d` troca o device). O script fala o protocolo HSU direto na porta serial e **não tem nenhuma dependência** — de propósito, pra separar "problema de fiação" de "problema de compilação de addon nativo". Ele checa o ambiente (device, `enable_uart=1`, console serial ocupando a porta), faz wakeup + `GetFirmwareVersion`, e entra num loop imprimindo UID/SAK de cada tag com detecção de remoção. Serve também pra confirmar na mão que as tags são NTAG (SAK `0x00`, UID de 7 bytes) e não Mifare Classic.
 - UART: no Pi Zero W, o Bluetooth ocupa o UART primário (PL011) por padrão, deixando só a mini-UART (`/dev/ttyS0`) exposta nos pinos GPIO — testar com `/dev/ttyS0` primeiro (é o mesmo caminho que o README da lib recomenda pro Pi 3). Se a mini-UART se mostrar instável (o clock dela varia com a frequência da CPU), o fallback é `dtoverlay=disable-bt` no `/boot/config.txt` pra liberar o UART completo (PL011) nos pinos, desativando o Bluetooth do Pi (sem perda pro projeto, já que o Zero W usa WiFi pra tudo, não Bluetooth).
 - Tags físicas devem ser **NTAG (213/215/216) ou Mifare Ultralight** — os NTAG215 que o usuário já possui servem. O cartão S50 (Mifare Classic) que veio de brinde no kit do PN532 **não vai funcionar** com essa lib — guardar pra outro uso ou descartar.
 - Saída ALSA do MAX98357A: após o `dtoverlay` de DAC + reboot, `aplay -l` pra achar o índice da placa e configurar em `musicPlayer.js` (`--audio-device=alsa/hw:X,0`).
-- Instalar `pn532`/`serialport`/`node-mpv` primeiro isolado no Pi (`npm install` numa pasta de teste) antes de integrar tudo — `serialport` também compila addon nativo, e o Pi Zero é ARMv6/Node 14, então vale confirmar cedo que a instalação funciona sem binário pré-compilado disponível.
+- Instalar `pn532`/`serialport`/`node-mpv` primeiro isolado no Pi (`npm install` numa pasta de teste) antes de integrar tudo — e só depois do smoke test passar, pra não debugar fiação e compilação ao mesmo tempo — `serialport` também compila addon nativo, e o Pi Zero é ARMv6/Node 14, então vale confirmar cedo que a instalação funciona sem binário pré-compilado disponível.
 - Sem supervisor pro `mpv`: se o processo Express cair, o `mpv` cai junto (filho do processo) — aceitável pro v1, sem retry automático.
 
 ## Arquivos críticos
