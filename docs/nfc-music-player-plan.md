@@ -292,6 +292,35 @@ mpv --idle=yes --no-video --audio-device=alsa/hw:0,0 --volume=30 \
     --input-ipc-server=/tmp/mpvsocket
 ```
 
+#### Instância órfã de mpv: matar antes de subir a própria
+
+Um mpv ocioso consome **~43MB RSS (9,7%)** nesse Pi, que tem 430MB no total. CPU ocioso é
+desprezível, e ele **não segura o dispositivo de áudio** (`fuser /dev/snd/*` mostra só
+`alsactl` e `pulseaudio`), então não bloqueia outros players. Também não sobrevive a reboot,
+por não ser serviço.
+
+Consequência prática: durante os testes manuais ficou um mpv rodando solto no Pi. Quando o
+`musicPlayer.js` entrar em cena ele vai subir o próprio, e dois processos custam ~86MB —
+significativo num aparelho desse tamanho. Pior, se ambos usarem o mesmo caminho de socket,
+o segundo falha ao criar o `/tmp/mpvsocket`.
+
+Duas medidas no `musicPlayer.init()`:
+
+- **Usar um caminho de socket próprio do projeto** (ex.: `/tmp/alexo-mpv.sock`) em vez do
+  `/tmp/mpvsocket` genérico usado nos testes manuais — evita colisão por acidente.
+- **Derrubar instâncias órfãs no boot** antes de subir a sua. Cuidado com o padrão do
+  `pkill`: `pkill -f "input-ipc-server"` casa com o próprio processo que o executa se a
+  string estiver na linha de comando dele (aconteceu aqui, matou a sessão ssh). Usar
+  `pkill -x mpv` ou casar pelo caminho do socket do projeto.
+
+#### PulseAudio também está no Pi
+
+`pulseaudio` roda nesse Pi e segura o `/dev/snd/controlC0`. Todos os testes passaram por cima
+dele com `--audio-device=alsa/hw:0,0`, indo direto ao ALSA, e funcionaram. Fica registrado
+porque existe uma segunda camada de áudio no caminho: se em algum momento o som sumir sem
+explicação aparente, ou o volume se comportar de forma estranha, o Pulse é o primeiro
+suspeito — e a saída é continuar endereçando o ALSA diretamente, como já fazemos.
+
 #### ⚠ O mpv leva ~11s para subir nesse Pi
 
 Medido: o socket IPC só aparece **11 segundos** depois de lançar o processo, com a CPU a
