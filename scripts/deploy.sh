@@ -30,6 +30,7 @@ cd "$REPO_ROOT"
 env_host="${ALEXO_DEPLOY_HOST:-}"
 env_path="${ALEXO_DEPLOY_PATH:-}"
 env_services="${ALEXO_DEPLOY_SERVICES:-}"
+env_npm="${ALEXO_DEPLOY_NPM:-}"
 
 # shellcheck disable=SC1091
 [ -f .env.deploy ] && source .env.deploy
@@ -37,6 +38,7 @@ env_services="${ALEXO_DEPLOY_SERVICES:-}"
 HOST="${env_host:-${ALEXO_DEPLOY_HOST:-pi@raspberrypi.local}}"
 REMOTE_PATH="${env_path:-${ALEXO_DEPLOY_PATH:-/home/pi/alexo}}"
 SERVICES="${env_services:-${ALEXO_DEPLOY_SERVICES:-alexo.service alexo-display.service}}"
+REMOTE_NPM="${env_npm:-${ALEXO_DEPLOY_NPM:-}}"
 
 SKIP_BUILD=0
 NO_RESTART=0
@@ -65,6 +67,7 @@ Flags (todos os atalhos aceitam flags extras depois de --):
 Para não repetir o host, crie um .env.deploy na raiz:
   ALEXO_DEPLOY_HOST=pi@192.168.1.50
   ALEXO_DEPLOY_PATH=/home/pi/alexo
+  ALEXO_DEPLOY_NPM=/caminho/para/npm    # opcional, só se a detecção falhar
 EOF
 }
 
@@ -111,6 +114,51 @@ ssh "$HOST" "command -v rsync >/dev/null" \
   || fail "rsync não está instalado no Pi. Instale com: ssh $HOST sudo apt install rsync"
 
 info "conexão ok"
+
+# `ssh host "cmd"` abre um shell não-interativo e não-login, que não carrega
+# ~/.profile nem o bloco do nvm no ~/.bashrc. E há Pis em que o npm nunca está
+# no PATH (instalação por tarball, com o systemd chamando o caminho absoluto).
+# Por isso o npm é descoberto, não assumido.
+if [ -z "$REMOTE_NPM" ]; then
+  # Cada candidato é validado antes de ser aceito: shells de login podem imprimir
+  # banners no stdout (o Raspberry Pi OS avisa sobre a senha padrão do usuário pi),
+  # e esse ruído se misturaria ao caminho.
+  REMOTE_NPM="$(ssh "$HOST" 'bash -s' <<'REMOTE'
+try() {
+  [ -n "$1" ] && [ "${1#/}" != "$1" ] && [ -x "$1" ] && { echo "$1"; exit 0; }
+  return 0
+}
+try "$(command -v npm 2>/dev/null | tail -1)"
+try "$(bash -lc 'command -v npm' 2>/dev/null | tail -1)"
+for candidate in /home/*/node-*/bin/npm /usr/local/lib/nodejs/*/bin/npm /opt/node*/bin/npm; do
+  try "$candidate"
+done
+exit 1
+REMOTE
+  )" || REMOTE_NPM=""
+fi
+
+# O npm é um script com shebang `#!/usr/bin/env node`, então chamar o caminho
+# absoluto não basta: o `node` precisa estar no PATH. É o mesmo motivo pelo qual
+# o unit do systemd carrega um Environment="PATH=.../bin:...".
+REMOTE_NODE_BIN=""
+if [ -n "$REMOTE_NPM" ]; then
+  REMOTE_NODE_BIN="$(dirname "$REMOTE_NPM")"
+  ssh "$HOST" "PATH='$REMOTE_NODE_BIN':\$PATH '$REMOTE_NPM' --version >/dev/null 2>&1" \
+    || REMOTE_NPM=""
+fi
+
+if [ -z "$REMOTE_NPM" ]; then
+  fail "não encontrei um npm utilizável em $HOST.
+
+  Procurei no PATH, num shell de login e nos caminhos usuais de instalação
+  por tarball. Descubra o caminho e informe ao script:
+
+    ssh $HOST 'systemctl cat alexo.service | grep ExecStart'   # costuma ter o caminho
+    echo 'ALEXO_DEPLOY_NPM=/caminho/para/npm' >> .env.deploy"
+fi
+
+info "npm no Pi: $REMOTE_NPM (v$(ssh "$HOST" "PATH='$REMOTE_NODE_BIN':\$PATH '$REMOTE_NPM' --version"))"
 
 # ------------------------------------------------------------------- build
 
@@ -163,7 +211,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   info "reescreve o index.html a cada vez."
   info ""
   info "O deploy real ainda faria, depois do envio:"
-  info "  1. cd $REMOTE_PATH/backend && npm install --production"
+  info "  1. cd $REMOTE_PATH/backend && $REMOTE_NPM install --production"
   info "  2. sudo systemctl restart $SERVICES"
   exit 0
 fi
@@ -171,7 +219,7 @@ fi
 # --------------------------------------------------------------- instalar
 
 step "Instalando dependências do backend no Pi"
-ssh "$HOST" "cd '$REMOTE_PATH/backend' && npm install --production --no-audit --no-fund"
+ssh "$HOST" "export PATH='$REMOTE_NODE_BIN':\$PATH; cd '$REMOTE_PATH/backend' && '$REMOTE_NPM' install --production --no-audit --no-fund"
 
 # --------------------------------------------------------------- reiniciar
 

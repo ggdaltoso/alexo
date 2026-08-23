@@ -260,14 +260,20 @@ launches Alexo on boot:
    Type=simple
    User=pi
    WorkingDirectory=/home/pi/alexo
-   ExecStart=/usr/bin/npm start
+   ExecStart=/home/pi/node-v14.15.1-linux-armv6l/bin/npm start
    Restart=always
    RestartSec=10
-   Environment=NODE_ENV=production
+   Environment="NODE_ENV=production"
+   Environment="PATH=/home/pi/node-v14.15.1-linux-armv6l/bin:/usr/local/bin:/usr/bin:/bin"
 
    [Install]
    WantedBy=multi-user.target
    ```
+
+   Adjust both paths to wherever Node actually lives on your Pi
+   (`ls -d ~/node-v*` if it was installed from a tarball). Both lines matter:
+   systemd does not search `PATH` for `ExecStart`, and `npm` is a script whose
+   `#!/usr/bin/env node` shebang needs `node` on `PATH` to run at all.
 
 3. Enable and start the service:
    ```bash
