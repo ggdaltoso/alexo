@@ -97,6 +97,60 @@ Notas:
 - **VCC do PN532**: usar 3.3V pra bater com o nível lógico do Pi, a menos que o manual do módulo específico confirme que os pinos de UART são tolerantes a 5V.
 - **DIN do MAX98357A** se conecta ao **DOUT** de I2S do Pi (GPIO21) — o Pi transmite os dados de áudio, o DAC só recebe.
 
+## Áudio: configuração confirmada
+
+Testado no Pi real em 23/08/2026 — som saiu pelo speaker, cadeia inteira validada
+(I2S → MAX98357A → speaker, com decode de MP3).
+
+Três linhas no `/boot/config.txt`, seguidas de reboot:
+
+```
+#dtparam=audio=on                     # desliga o snd_bcm2835 (HDMI), pro DAC virar card 0
+dtparam=i2s=on
+dtoverlay=max98357a,no-sdmode
+```
+
+Notas sobre cada uma:
+
+- **`max98357a` em vez de `hifiberry-dac`**: o kernel do Pi (5.10.103+, Raspbian Buster)
+  já traz o overlay específico do chip. O parâmetro `no-sdmode` é o que corresponde à
+  nossa fiação — como o pino `SD` fica sem conexão (pull-up interno = ampli sempre
+  ligado), o driver não deve tentar controlar esse pino. Sem `no-sdmode` ele assumiria
+  o GPIO4 como controle de shutdown.
+- **Desligar `dtparam=audio=on`** não é obrigatório, mas faz o DAC ser `card 0` e evita
+  ter que selecionar placa em todo lugar. Reversível: é só descomentar. Perde-se áudio
+  por HDMI, que nesse kiosk não é usado.
+
+Resultado: `card 0: MAX98357A [MAX98357A], device 0` → device ALSA **`hw:0,0`**,
+ou seja `--audio-device=alsa/hw:0,0` no `musicPlayer.js`.
+
+### Volume é obrigatoriamente por software
+
+`amixer -c 0 scontrols` retorna **vazio** — o MAX98357A não tem nenhum controle de
+volume por hardware, e sem o `snd_bcm2835` não há mixer nenhum no sistema. Não é
+limitação de configuração, é o chip: ele é um DAC + ampli de ganho fixo (o pino
+`GAIN` flutuando = 9dB).
+
+Consequência pro projeto: o `setVolume` do `musicPlayer.js` é a **única** forma de
+controlar volume, via volume por software do mpv. Não existe fallback de `amixer`.
+
+**Volume padrão: 30** (≈ −10,5 dB, medido de ouvido com o speaker do projeto — 100%
+ficou alto demais pro uso na mesa). É por isso que o `volume` inicial do player state
+é 30 e não 80.
+
+Deliberadamente **não** configuramos um plugin `softvol` do ALSA: criaria um segundo
+lugar para ajustar a mesma coisa, com risco de multiplicar dois atenuadores sem
+perceber. O volume é comportamento da aplicação.
+
+### Pendência
+
+O **`mpv` não está instalado no Pi** — o único player presente é o `omxplayer` (legado,
+usado só pro teste manual). Antes de implementar o `musicPlayer.js`:
+
+```bash
+sudo apt install mpv
+```
+
 ## Bug pré-existente a corrigir como pré-requisito
 
 `frontend/src/contexts/AppContext.tsx:92-94` trata **qualquer** broadcast do WebSocket como se fosse uma `NFCMessage` (`setCurrentMessage(message)` sem checar `type`), incluindo o já existente `{type:'gallery_updated'}`, que não tem `message`/`timestamp`. Isso nunca explodiu na prática porque a Galeria faz polling e não escuta o WS — mas qualquer broadcast novo (como `music_playback_state`) vai colidir com o fluxo de interrupção de `/message` se isso não for corrigido primeiro.
@@ -117,7 +171,7 @@ Notas:
 
 - Tracks, com persistência em `backend/data/music-tracks.json` (igual `gallery.json`): `getTracks()/addTrack()/removeTrack(id)` (removendo também precisa fazer cascade nos mapeamentos de tag que apontam pra ela).
 - Mapeamentos de tag, em `backend/data/nfc-tags.json`: `getTagMappings()/getTagMapping(uid)/setTagMapping({uid,trackId})/removeTagMapping(uid)`.
-- Estado do player: **puramente em memória, sem persistir em disco** (mesmo tratamento que o já existente `state.message`) — `getPlayerState()/setPlayerState(partial)`, shape inicial `{trackId:null, title:null, filename:null, isPlaying:false, position:0, duration:null, volume:80, activeTagUid:null, pausedUid:null}`. `pausedUid` guarda a última tag pausada, usado pelo `musicController` pra decidir resume vs. restart (ver acima). Motivo de não persistir: posição de playback muda o tempo todo, persistir em JSON a cada tick faria I/O de disco constante no Pi Zero — igual ao alerta que a própria galeria já ilustra (toda leitura/escrita reabre o arquivo inteiro).
+- Estado do player: **puramente em memória, sem persistir em disco** (mesmo tratamento que o já existente `state.message`) — `getPlayerState()/setPlayerState(partial)`, shape inicial `{trackId:null, title:null, filename:null, isPlaying:false, position:0, duration:null, volume:30, activeTagUid:null, pausedUid:null}`. O padrão de 30 foi medido no hardware real (ver seção de áudio abaixo), não chutado. `pausedUid` guarda a última tag pausada, usado pelo `musicController` pra decidir resume vs. restart (ver acima). Motivo de não persistir: posição de playback muda o tempo todo, persistir em JSON a cada tick faria I/O de disco constante no Pi Zero — igual ao alerta que a própria galeria já ilustra (toda leitura/escrita reabre o arquivo inteiro).
 
 ### Rotas novas em `backend/server.js` (seguindo exatamente as convenções da galeria — multer, broadcast-após-mutação, ids via `crypto.randomUUID()`)
 
@@ -195,7 +249,7 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 - **Smoke test do PN532 antes de qualquer código do projeto**: `node backend/scripts/pn532-smoke-test.js` (`--verbose` mostra os bytes crus, `-d` troca o device). O script fala o protocolo HSU direto na porta serial e **não tem nenhuma dependência** — de propósito, pra separar "problema de fiação" de "problema de compilação de addon nativo". Ele checa o ambiente (device, `enable_uart=1`, console serial ocupando a porta), faz wakeup + `GetFirmwareVersion`, e entra num loop imprimindo UID/SAK de cada tag com detecção de remoção. Serve também pra confirmar na mão que as tags são NTAG (SAK `0x00`, UID de 7 bytes) e não Mifare Classic.
 - UART: no Pi Zero W, o Bluetooth ocupa o UART primário (PL011) por padrão, deixando só a mini-UART (`/dev/ttyS0`) exposta nos pinos GPIO — testar com `/dev/ttyS0` primeiro (é o mesmo caminho que o README da lib recomenda pro Pi 3). Se a mini-UART se mostrar instável (o clock dela varia com a frequência da CPU), o fallback é `dtoverlay=disable-bt` no `/boot/config.txt` pra liberar o UART completo (PL011) nos pinos, desativando o Bluetooth do Pi (sem perda pro projeto, já que o Zero W usa WiFi pra tudo, não Bluetooth).
 - Tags físicas devem ser **NTAG (213/215/216) ou Mifare Ultralight** — os NTAG215 que o usuário já possui servem. O cartão S50 (Mifare Classic) que veio de brinde no kit do PN532 **não vai funcionar** com essa lib — guardar pra outro uso ou descartar.
-- Saída ALSA do MAX98357A: após o `dtoverlay` de DAC + reboot, `aplay -l` pra achar o índice da placa e configurar em `musicPlayer.js` (`--audio-device=alsa/hw:X,0`).
+- ~~Saída ALSA do MAX98357A~~ — **já validado no hardware, ver "Áudio: configuração confirmada" abaixo**.
 - Instalar `pn532`/`serialport`/`node-mpv` primeiro isolado no Pi (`npm install` numa pasta de teste) antes de integrar tudo — e só depois do smoke test passar, pra não debugar fiação e compilação ao mesmo tempo — `serialport` também compila addon nativo, e o Pi Zero é ARMv6/Node 14, então vale confirmar cedo que a instalação funciona sem binário pré-compilado disponível.
 - Sem supervisor pro `mpv`: se o processo Express cair, o `mpv` cai junto (filho do processo) — aceitável pro v1, sem retry automático.
 
