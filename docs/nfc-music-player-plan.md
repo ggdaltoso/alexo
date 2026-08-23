@@ -142,14 +142,63 @@ Deliberadamente **não** configuramos um plugin `softvol` do ALSA: criaria um se
 lugar para ajustar a mesma coisa, com risco de multiplicar dois atenuadores sem
 perceber. O volume é comportamento da aplicação.
 
-### Pendência
+### mpv: instalado e validado via IPC
 
-O **`mpv` não está instalado no Pi** — o único player presente é o `omxplayer` (legado,
-usado só pro teste manual). Antes de implementar o `musicPlayer.js`:
+`mpv 0.29.1` instalado no Pi em 23/08/2026, e o controle por socket IPC — que é a base do
+`musicPlayer.js` — foi validado ponta a ponta contra uma faixa real:
 
-```bash
-sudo apt install mpv
+| Comando IPC | Resultado |
+|---|---|
+| `loadfile <path>` | success, áudio tocando |
+| `get_property duration` | `17.502041` |
+| `get_property volume` | `30.0` |
+| `set_property pause true` | posição **congelada** em `5.299909` por 2s |
+| `set_property pause false` | retomou, avançou para `8.70517` |
+
+O pause/resume preservando a posição é exatamente o mecanismo de que a regra
+"mesma tag recolocada → retoma de onde parou" depende. Está provado no hardware.
+
+Linha de comando validada:
+
 ```
+mpv --idle=yes --no-video --audio-device=alsa/hw:0,0 --volume=30 \
+    --input-ipc-server=/tmp/mpvsocket
+```
+
+#### ⚠ O mpv leva ~11s para subir nesse Pi
+
+Medido: o socket IPC só aparece **11 segundos** depois de lançar o processo, com a CPU a
+~50% durante a inicialização. Isso é com o cache de fontes já quente — na primeira
+execução foi entre 10 e 20s. **Não é custo único, é toda vez.**
+
+Três consequências de projeto:
+
+1. **Confirma a decisão de subir o mpv com `--idle` no boot do backend.** Lançar o mpv sob
+   demanda, na primeira tag, colocaria 11s de silêncio entre encostar a tag e ouvir som —
+   inaceitável para o efeito "caixinha". O processo tem que já estar de pé, ocioso.
+2. **`musicPlayer.init()` não pode assumir que o socket existe logo após o spawn.** Precisa
+   esperar o socket aparecer, com timeout generoso (≥30s), e o boot do Express **não pode
+   bloquear** nisso — inicialização assíncrona, e o backend sobe normalmente enquanto o mpv
+   ainda está subindo.
+3. **Verificar o timeout de conexão do `node-mpv`.** A lib espera o socket por conta
+   própria; se o default dela for menor que ~15s, vai falhar por pouco nesse hardware.
+   Conferir e aumentar explicitamente ao configurar.
+
+### Pendência do ambiente: apt do Pi estava quebrado
+
+O Raspbian Buster saiu do arquivo principal — `raspbian.raspberrypi.org` devolve 404 e
+qualquer `apt install` falhava. Corrigido repontando o `/etc/apt/sources.list` para o
+arquivo oficial de versões EOL (backup em `/etc/apt/sources.list.bak`):
+
+```
+deb http://legacy.raspbian.org/raspbian/ buster main contrib non-free rpi
+```
+
+Fica registrado porque afeta qualquer instalação futura nesse Pi, não só o mpv. O
+`archive.raspberrypi.org/debian buster` (repo da Foundation) continua funcionando e não
+foi tocado. Cuidado ao instalar coisas aqui: a imagem é antiga e a orientação do usuário é
+mexer o mínimo — usar `apt-get install -s` (simulação) antes e conferir que o resumo diz
+`0 upgraded, 0 to remove`, nunca rodar `apt upgrade`.
 
 ## Bug pré-existente a corrigir como pré-requisito
 
