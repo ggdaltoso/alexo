@@ -50,7 +50,15 @@ app.post('/api/nfc', (req, res) => {
   if (typeof type !== 'string' || typeof message !== 'string') {
     return res.status(400).json({ error: 'Invalid payload' });
   }
-  wsServer.broadcast({ type, message, timestamp: Date.now() });
+  // `type` no corpo da requisição é a severidade ('info' | 'warning'), e no
+  // broadcast ele vira `messageType`: no WebSocket o campo `type` é o
+  // discriminador da união e não pode carregar outra coisa. Ver ws.js.
+  wsServer.broadcast({
+    type: 'nfc_message',
+    messageType: type,
+    message,
+    timestamp: Date.now(),
+  });
   res.status(200).json({ ok: true });
 });
 

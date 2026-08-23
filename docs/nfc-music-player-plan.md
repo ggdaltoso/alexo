@@ -654,7 +654,7 @@ depois disso leva ~3min a mais. Os seguintes reaproveitam o build.
 variável de ambiente em vez de constante — a máquina de dev não tem barramento nenhum, e um
 Pi diferente pode numerar diferente.
 
-## Bug pré-existente a corrigir como pré-requisito
+## Bug pré-existente a corrigir como pré-requisito (RESOLVIDO em 23/08/2026)
 
 `frontend/src/contexts/AppContext.tsx:92-94` trata **qualquer** broadcast do WebSocket como se fosse uma `NFCMessage` (`setCurrentMessage(message)` sem checar `type`), incluindo o já existente `{type:'gallery_updated'}`, que não tem `message`/`timestamp`. Isso nunca explodiu na prática porque a Galeria faz polling e não escuta o WS — mas qualquer broadcast novo (como `music_playback_state`) vai colidir com o fluxo de interrupção de `/message` se isso não for corrigido primeiro.
 
@@ -772,11 +772,38 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 
 ### `frontend/src/contexts/AppContext.tsx`
 
-1. Corrigir o callback do WS (linha ~92) pra discriminar por tipo/shape antes de tratar como `NFCMessage`, em vez do check de truthy atual.
-2. Novo estado independente do fluxo de mensagem: `musicPlayback` (do broadcast `music_playback_state`) e `routeBeforeMusic` — **não reaproveitar** `routeBeforeMessage`/o timer de 10s, porque duração de música não tem relação com duração de mensagem.
-3. Efeito de interrupção: quando `musicPlayback?.activeTagUid` estiver setado e a rota atual não for `/music` nem `/message` (mensagem tem prioridade se as duas colidirem), guarda a rota atual e navega pra `/music`.
-4. Efeito de retorno: **orientado a evento, não a timer** — quando `activeTagUid` virar `null` (tag removida/parada), volta pra rota salva. Isso é o que resolve corretamente músicas mais longas ou mais curtas que 10s.
-5. `NAVIGATION_ROUTES` continua `['/', '/forecast', '/exchange']` — `/music` fica de fora do carrossel, mesma lógica de exclusão implícita que `/message` já usa hoje.
+**Feito em 23/08/2026** (itens 1 e 2 abaixo):
+
+1. ~~Corrigir o callback do WS~~ **Feito.** O `type` era sobrecarregado no protocolo:
+   a mensagem NFC mandava a severidade (`'info'`/`'warning'`) e a galeria mandava o nome do
+   evento (`'gallery_updated'`), então nenhum consumidor conseguia discriminar. A correção
+   foi no protocolo, não só no callback: `type` virou discriminador puro
+   (`{ type: 'nfc_message', messageType, message, timestamp }`), com a união
+   `ServerMessage` em `types.ts` espelhando o contrato documentado em `backend/ws.js`. O
+   `POST /api/nfc` não mudou — só o envelope do WebSocket.
+2. **O fluxo de `/message` foi removido** (decisão do usuário, 23/08/2026). Saíram o estado
+   `routeBeforeMessage` e os dois efeitos (interrupção ao receber mensagem, e retorno após
+   10s). Ficaram o componente `MessageScreen`, a rota `/message` em `App.tsx` e o estado
+   `currentMessage` — a tela ainda renderiza se alguém navegar até ela, ela só não é mais
+   aberta automaticamente.
+
+Consequências para o player de música, que simplificam o desenho original:
+
+3. Não existe mais colisão a arbitrar. O texto anterior previa "mensagem tem prioridade se
+   as duas colidirem" — não há mais fluxo de mensagem competindo pela tela, então o efeito
+   de interrupção da música só precisa checar se a rota atual não é `/music`.
+4. Efeito de retorno: **orientado a evento, não a timer** — quando `activeTagUid` virar
+   `null` (tag removida/parada), volta pra rota salva. Continua valendo, e agora sem o
+   contraexemplo do timer de 10s ao lado.
+5. `NAVIGATION_ROUTES` continua `['/', '/forecast', '/exchange']`; `/music` fica de fora do
+   carrossel, como `/message` e `/calendar` já ficam.
+
+> **Armadilha ao verificar isso no navegador:** o Chrome estrangula `setInterval` em abas
+> ocultas para ~1 tick/segundo, e aperta mais quanto mais tempo a aba fica escondida. O
+> carrossel usa 100 ticks de 100ms, então em aba oculta os 10s viram ~100s e parece que o
+> timer travou. Medido em 23/08/2026: **6 ticks em 5s onde deveriam ser 50**. Testar sempre
+> com a aba em primeiro plano, ou medir a taxa de ticks antes de concluir qualquer coisa
+> sobre os timers.
 
 ### Novos arquivos/mudanças
 
@@ -798,7 +825,11 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
    ```
    Confirmar áudio tocando na máquina dev, `GET /api/music/player/status` com `isPlaying:true` e posição avançando, e o broadcast `music_playback_state` chegando (via devtools ou `wscat`).
 5. Rodar `npm run dev` e confirmar no navegador: navegação automática pra `/music` ao simular presença, progresso avançando, pause funcionando de verdade, e retorno à rota anterior ao simular remoção (testar com faixa >10s pra provar que não é mais timer fixo).
-6. Regressão do bug corrigido: disparar `POST /api/nfc` (mensagem) e um upload de galeria enquanto a música está parada — confirmar que `gallery_updated` não força mais navegação pra `/message`, e que mensagem "ganha" se colidir com um tag-present.
+6. Regressão do bug corrigido (**já verificado em 23/08/2026, no navegador**): disparar
+   `POST /api/nfc` e um `PUT /api/gallery/reorder []` — nenhum dos dois pode navegar para
+   `/message`, e o carrossel deve seguir girando só entre as três rotas. Interceptar
+   `history.pushState` em vez de amostrar `location.pathname`: uma navegação de ida e volta
+   dentro do mesmo tick não aparece na amostragem.
 
 **Só no Pi real** (tudo abaixo já foi executado e passou, em 23/08/2026):
 

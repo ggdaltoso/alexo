@@ -1,8 +1,23 @@
 // WebSocket service for real-time updates
 import { API_CONFIG, API_ENDPOINTS } from '../config/api';
-import type { NFCMessage } from '../types';
+import type { ServerMessage } from '../types';
 
-type MessageCallback = (message: NFCMessage) => void;
+type MessageCallback = (message: ServerMessage) => void;
+
+/**
+ * Valida só o envelope: um objeto com `type` string.
+ *
+ * Não garante que o `type` seja um dos conhecidos -- um backend mais novo pode
+ * mandar variantes que este cliente ainda não conhece. Distinguir isso é do
+ * consumidor, que deve tratar o `default` do switch como "ignorar".
+ */
+function isServerMessage(value: unknown): value is ServerMessage {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { type?: unknown }).type === 'string'
+  );
+}
 
 class WebSocketService {
   private ws: WebSocket | null = null;
@@ -29,7 +44,11 @@ class WebSocketService {
       this.ws.onmessage = (event) => {
         console.log('WebSocket message received:', event.data);
         try {
-          const data = JSON.parse(event.data);
+          const data: unknown = JSON.parse(event.data);
+          if (!isServerMessage(data)) {
+            console.warn('Ignoring WebSocket frame without a `type`:', data);
+            return;
+          }
           this.callbacks.forEach((callback) => callback(data));
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
