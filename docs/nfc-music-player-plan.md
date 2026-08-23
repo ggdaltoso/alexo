@@ -729,7 +729,12 @@ node backend/scripts/import-music.js --dry-run  # só relata o que faria
 A tabela de mapeamento precisa agrupar por álbum com `<optgroup>`, ou ganhar um campo de
 busca. O desenho original da página assumia uma lista curta.
 
-### Rotas novas em `backend/server.js` (seguindo exatamente as convenções da galeria — multer, broadcast-após-mutação, ids via `crypto.randomUUID()`)
+### Rotas novas em `backend/server.js` (seguindo exatamente as convenções da galeria — multer, broadcast-após-mutação, ids via `randomUUID()` de `backend/ids.js`)
+
+> **Nunca usar `crypto.randomUUID()` neste projeto.** Ele só existe a partir do Node 14.17.0
+> e o Pi roda 14.15.1 — a máquina de dev roda um Node moderno, então o erro não aparece
+> localmente e só derruba o serviço em produção. Foi exatamente o que aconteceu em
+> 23/08/2026 com o upload da galeria. Usar o helper `backend/ids.js`.
 
 ```
 GET    /api/music/tracks

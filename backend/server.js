@@ -7,6 +7,7 @@ const fs = require('fs');
 const multer = require('multer');
 const wsServer = require('./ws');
 const state = require('./state');
+const { randomUUID } = require('./ids');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,7 +19,7 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    cb(null, `${require('crypto').randomUUID()}${ext}`);
+    cb(null, `${randomUUID()}${ext}`);
   },
 });
 
