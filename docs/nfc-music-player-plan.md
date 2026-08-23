@@ -434,6 +434,10 @@ colapsa só quando o chip energiza o campo RF.
 
 **Próximos passos, em ordem:**
 
+> **Superado pelo pivô para I2C** (subseção logo abaixo). A lista abaixo é o caminho
+> HSU e continua válida como plano B, mas depende de solda e de adaptação de nível —
+> o caminho I2C testa a mesma hipótese sem nenhum dos dois. Fazer o I2C primeiro.
+
 1. Conferir a chave DIP em HSU (`0 | 0` nessa placa) — custo zero, só olhar.
 2. Mover VCC do pino 1 (3V3) para o pino 2 (5V) e colocar **1kΩ em série** na linha do
    `SDA` → pino 10 — ver "Adaptação de nível no TX do PN532". Confirmado por medição em
@@ -446,6 +450,126 @@ colapsa só quando o chip energiza o campo RF.
 **Nota sobre a `pn532pi`:** é uma lib Python, não serve pro projeto (que é Node), mas a
 documentação dela é a melhor referência de hardware que encontramos até agora. Vale
 consultar antes de qualquer nova hipótese elétrica.
+
+### Pivô para I2C (23/08/2026)
+
+Motivado por [este tutorial](https://www.electroniclinic.com/raspberry-pi-pico-and-pn532-nfc-rfid-module-using-arduino-ide/)
+de PN532 + Raspberry Pi Pico. Ele é apresentado como "o mesmo design, mas em SPI" — não é:
+**o tutorial é I2C**, a única menção a SPI é de passagem ("It doesn't matter if you start
+with HSU, I2C, or SPI"), e todo o código é `PN532_I2C pn532_i2c(Wire)`. A fiação dele é
+VCC em **3.3V**, SDA/SCL nos GPIOs de I2C, chave DIP com canal 1 ON e canal 2 OFF (= `1 | 0`).
+
+Isso é melhor notícia do que SPI seria, por três motivos independentes.
+
+**1. Não exige solda nenhuma.** O header de 4 furos é dual-purpose: o furo rotulado `SDA`
+na frente é o mesmo furo rotulado `TXD` no verso, e idem `SCL`/`RXD`. As juntas de solda
+que já existem no módulo servem para I2C sem serem tocadas. Só muda a ponta que está no
+header do Pi — dois jumpers que saem dos pinos 8/10 e entram nos pinos 5/3 — e a chave DIP.
+Isso destrava o teste sem esperar o estanho.
+
+**2. Elimina a questão do nível lógico, em vez de contorná-la.** I2C é *open-drain*: nenhum
+dos lados dirige a linha para nível alto, os dois só puxam para o terra, e quem sobe a linha
+é um pull-up. O Pi tem pull-ups fixos de 1,8kΩ para 3,3V soldados no GPIO2/GPIO3 — dá pra
+confirmar sem instrumento nenhum:
+
+```
+$ raspi-gpio get 2,3        # com nada conectado
+GPIO 2: level=1 fsel=0 func=INPUT
+GPIO 3: level=1 fsel=0 func=INPUT
+```
+
+`level=1` em pino de entrada flutuante é o pull-up se revelando. Com VCC em 3,3V, nada no
+barramento pode ultrapassar 3,3V, então o resistor de 1kΩ em série (e todo o raciocínio da
+seção "Adaptação de nível no TX do PN532") simplesmente deixa de ser necessário.
+
+> ⚠ Isso vale **só com VCC em 3,3V**. Em I2C com VCC em 5V o shifter do módulo passa a puxar
+> as linhas para 5V, brigando com o pull-up de 3,3V do Pi e injetando corrente nos diodos de
+> proteção do SoC. Se um dia formos para 5V em I2C, aí sim é preciso um level shifter
+> bidirecional de verdade (BSS138). Em I2C: 3,3V, ponto.
+
+**3. Dá um teste de presença que o HSU nunca deu.** É o ganho mais importante. Uma UART é
+muda por natureza: "zero bytes" não distingue módulo morto, fio trocado, chave DIP errada
+ou porta mal configurada — foi exatamente onde o diagnóstico empacou. Em I2C o escravo
+confirma o próprio endereço **por hardware**, antes de qualquer byte de protocolo. Então:
+
+| Resultado | Conclusão |
+|---|---|
+| `i2cdetect -y 1` mostra `0x24` | o módulo está vivo e alimentado; o que falhar daí pra frente é protocolo/software |
+| tabela vazia, ou `errno 121` (EREMOTEIO) | não há ACK de endereço — o problema é elétrico (alimentação, fio, chave DIP) |
+
+Uma resposta binária em um segundo, contra a ambiguidade que arrastamos no UART.
+
+**Sobre o 5V.** O tutorial roda em 3,3V e funciona, o que é evidência contra a hipótese de
+que 3,3V é insuficiente (a citação da `pn532pi`). Não resolve a questão — é outra placa e
+outro regulador —, mas como em I2C o teste a 3,3V é gratuito e sem risco, é por onde começar.
+Se o `0x24` não aparecer a 3,3V, aí a hipótese do 5V volta com força, e o custo dela em I2C
+é o level shifter do aviso acima.
+
+#### Nova fiação (I2C)
+
+```
+PN532 V3 — mesmo header de 4 furos, chave DIP em I2C (1 | 0)
+
+    VCC             <──  3V3          (pin 1)   ← fica onde já está
+    GND             <──  GND          (pin 6)   ← fica onde já está
+    SDA (= TXD/HSU) <──> SDA1/GPIO2   (pin 3)   ← sai do pino 10
+    SCL (= RXD/HSU) <──> SCL1/GPIO3   (pin 5)   ← sai do pino 8
+```
+
+Sem resistor em série, sem divisor. As setas são bidirecionais porque em I2C ambas as
+linhas são.
+
+#### Lado do Pi: já está pronto
+
+Feito em 23/08/2026, tudo verificado:
+
+```bash
+sudo apt-get install -y i2c-tools     # 0 upgraded, 3 newly installed, 0 to remove
+sudo dtparam i2c_arm=on               # aplica em runtime, sem reboot
+sudo modprobe i2c-dev                 # cria o /dev/i2c-1
+```
+
+Persistência: `dtparam=i2c_arm=on` em `/boot/config.txt` (backup em
+`/boot/config.txt.bak-pre-i2c`) e `i2c-dev` em `/etc/modules`. O usuário `pi` já pertencia
+ao grupo `i2c`. O `i2cdetect -y 1` roda e devolve a tabela vazia — que é o baseline correto
+com nada conectado no GPIO2/3. Nenhum conflito com o áudio: I2S usa GPIO18/19/21, I2C usa
+GPIO2/3.
+
+O `i2cdetect` fica em `/usr/sbin`, que **não** está no PATH de um `ssh host "cmd"`
+não-interativo. Ou usa caminho completo, ou `export PATH=/usr/sbin:$PATH`.
+
+#### `backend/scripts/pn532-i2c-probe.py`
+
+Contraparte em I2C do `pn532-smoke-test.js`, com a mesma filosofia: zero dependências, pra
+que uma falha seja inequivocamente do hardware e não de um addon nativo que não compilou no
+ARMv6. Aqui isso obrigou a sair do Node — falar I2C cru exige `ioctl(I2C_SLAVE)`, que o Node
+não faz sem addon nativo (`i2c-bus`), justamente a dependência que o teste quer evitar. O
+`fcntl` da stdlib do Python 3 faz sem instalar nada. É script de diagnóstico, não código de
+aplicação.
+
+Quatro fases, iguais às do smoke test de HSU: abrir o barramento → `GetFirmwareVersion` →
+`SAMConfiguration` → polling de `InListPassiveTarget` com detecção de tag presente/removida
+e identificação do tipo por SAK.
+
+```bash
+ssh pi@<ip> 'cd /home/pi/alexo && python3 backend/scripts/pn532-i2c-probe.py --verbose'
+```
+
+Já validado no Pi com nada conectado: falha na fase 2 com o `errno 121` traduzido e a
+checklist de causas elétricas, sem stack trace.
+
+#### Próximo passo
+
+Físico, e é rápido: chave DIP para `1 | 0`, jumper do pino 10 → pino 3, jumper do pino 8 →
+pino 5, VCC continua no pino 1. Depois `i2cdetect -y 1` — se o `0x24` aparecer, rodar o probe.
+
+#### Impacto na escolha de biblioteca
+
+O plano original já era I2C (`pn532-i2c`); a migração para UART veio do receio com addon
+nativo em ARMv6. Se o hardware responder em I2C, essa decisão precisa ser reaberta — as
+opções são `pn532-i2c` + `i2c-bus` (addon nativo, precisa compilar), ou um cliente I2C
+próprio em Node, ou manter o leitor em Python conversando com o backend. Decidir só depois
+do `0x24` aparecer; não vale gastar essa escolha antes de ter hardware confirmado.
 
 ## Bug pré-existente a corrigir como pré-requisito
 
