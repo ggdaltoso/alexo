@@ -169,9 +169,62 @@ sudo apt install mpv
 
 ### `backend/state.js` — extensão (mesmo padrão da galeria)
 
-- Tracks, com persistência em `backend/data/music-tracks.json` (igual `gallery.json`): `getTracks()/addTrack()/removeTrack(id)` (removendo também precisa fazer cascade nos mapeamentos de tag que apontam pra ela).
+- Tracks, com persistência em `backend/data/music-tracks.json` (igual `gallery.json`): `getTracks()/addTrack()/removeTrack(id)` (removendo também precisa fazer cascade nos mapeamentos de tag que apontam pra ela). Além dessas, `replaceTracks(list)` — **escrita em lote, exigida pelo importador**: chamar `addTrack()` 404 vezes reescreveria o JSON inteiro 404 vezes, que é exatamente o padrão de I/O que a galeria já ilustra como problema no Pi Zero.
 - Mapeamentos de tag, em `backend/data/nfc-tags.json`: `getTagMappings()/getTagMapping(uid)/setTagMapping({uid,trackId})/removeTagMapping(uid)`.
 - Estado do player: **puramente em memória, sem persistir em disco** (mesmo tratamento que o já existente `state.message`) — `getPlayerState()/setPlayerState(partial)`, shape inicial `{trackId:null, title:null, filename:null, isPlaying:false, position:0, duration:null, volume:30, activeTagUid:null, pausedUid:null}`. O padrão de 30 foi medido no hardware real (ver seção de áudio abaixo), não chutado. `pausedUid` guarda a última tag pausada, usado pelo `musicController` pra decidir resume vs. restart (ver acima). Motivo de não persistir: posição de playback muda o tempo todo, persistir em JSON a cada tick faria I/O de disco constante no Pi Zero — igual ao alerta que a própria galeria já ilustra (toda leitura/escrita reabre o arquivo inteiro).
+
+### Importação em massa das faixas — `backend/scripts/import-music.js`
+
+O desenho original assumia upload manual de poucas faixas pela `/admin/music`. A realidade
+é outra: já existem **404 MP3s (899MB) em seis pastas de álbum** copiados para
+`backend/uploads/music/` no Pi. Subir isso um a um por formulário é inviável, então o
+catálogo precisa ser gerado a partir do que já está em disco.
+
+Script standalone, no mesmo lugar do `pn532-smoke-test.js`, rodado no Pi:
+
+```bash
+node backend/scripts/import-music.js            # varre e grava
+node backend/scripts/import-music.js --dry-run  # só relata o que faria
+```
+
+**Comportamento:**
+
+- Varre `backend/uploads/music/` recursivamente atrás de `.mp3`.
+- Deriva os metadados do caminho, sem ler tags ID3: `album` = pasta pai,
+  `title` = nome do arquivo sem extensão e sem o número de faixa inicial
+  (`01 Title ~ Link to the Past.mp3` → `Title ~ Link to the Past`).
+- Grava tudo de uma vez via `state.replaceTracks(list)` — um único write.
+
+**Shape de cada faixa:**
+
+```json
+{
+  "id": "hash estável do caminho relativo",
+  "title": "Title ~ Link to the Past",
+  "album": "Legend of Zelda, The - A Link to the Past",
+  "filename": "Legend of Zelda, The - A Link to the Past/01 Title ~ Link to the Past.mp3",
+  "duration": null
+}
+```
+
+**Duas decisões que merecem destaque:**
+
+- **`id` derivado do caminho (hash), não `crypto.randomUUID()`.** Essa é a diferença
+  crítica em relação ao resto do projeto. Um id aleatório faria cada re-execução do
+  script gerar ids novos para os mesmos arquivos, **quebrando todos os mapeamentos
+  UID→faixa** já configurados. Com id derivado do caminho, reimportar é idempotente:
+  arquivos novos entram, arquivos removidos saem, e os que continuam lá mantêm o id e
+  os mapeamentos. Contrapartida a aceitar: **renomear ou mover um arquivo muda o id** e
+  órfã o mapeamento daquela tag. Aceitável, porque a alternativa (ids aleatórios) quebra
+  em toda importação em vez de só quando um arquivo é renomeado.
+- **`duration: null` na importação.** Descobrir a duração exigiria parsear o MP3 (lib
+  nova) ou invocar o mpv 404 vezes. Não vale: o mpv já reporta a duração quando a faixa
+  toca, e o `musicPlayer.js` emite isso no `'status'`. O campo fica nulo até a primeira
+  reprodução — a UI precisa tolerar `duration` nulo (mostrar `--:--` no lugar do total).
+
+**Consequência na `/admin/music`:** um `<select>` de faixa com 404 opções é inutilizável.
+A tabela de mapeamento precisa agrupar por álbum com `<optgroup>`, ou ganhar um campo de
+busca. O desenho original da página assumia uma lista curta.
 
 ### Rotas novas em `backend/server.js` (seguindo exatamente as convenções da galeria — multer, broadcast-após-mutação, ids via `crypto.randomUUID()`)
 
@@ -227,7 +280,7 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 - `frontend/src/types.ts`: `MusicTrack`, `NfcTagMapping`, `MusicPlaybackState`.
 - `frontend/src/services/websocket.ts`: tipar o callback como união discriminada em vez de assumir sempre `NFCMessage`.
 - `frontend/src/services/api.ts`: adicionar métodos de música (`getTracks`, `uploadTrack`, `deleteTrack`, `getTagMappings`, `getPlayerStatus`, `playMusic`, `pauseMusic`, `restartMusic`, `setVolume`) — usar a classe `ApiService` já existente em vez do fetch cru que a `Galeria.tsx` usa, estabelecendo o padrão pretendido pra código novo.
-- `frontend/src/screens/MusicScreen.tsx` (novo): lê `musicPlayback` via `useApp()` (não precisa de hook de polling — o dado já chega via WS/contexto). Interpola a posição localmente a cada ~500ms enquanto tocando. Mostra título da faixa, `mm:ss / mm:ss`, barra de progresso (`Frame boxShadow="$in"`, no estilo das outras telas), e controles: play/pause, "reiniciar" (não "pular" — deixar claro na UI que não existe fila), volume +/-. Early-return `null` se não houver faixa ativa, igual ao padrão do `MessageScreen.tsx`.
+- `frontend/src/screens/MusicScreen.tsx` (novo): lê `musicPlayback` via `useApp()` (não precisa de hook de polling — o dado já chega via WS/contexto). Interpola a posição localmente a cada ~500ms enquanto tocando. Mostra título da faixa, `mm:ss / mm:ss` (com `--:--` no total enquanto `duration` for nulo — faixas importadas só ganham duração na primeira reprodução), barra de progresso (`Frame boxShadow="$in"`, no estilo das outras telas), e controles: play/pause, "reiniciar" (não "pular" — deixar claro na UI que não existe fila), volume +/-. Early-return `null` se não houver faixa ativa, igual ao padrão do `MessageScreen.tsx`.
 - `frontend/src/App.tsx`: adicionar `<Route path="/music" element={<MusicScreen />} />`.
 
 ## Verificação
@@ -235,7 +288,7 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 **Sem hardware físico (dev machine):**
 1. `nfcReader.init()` deve falhar graciosamente sem a porta serial disponível — servidor sobe normalmente.
 2. Instalar `mpv` localmente e validar o socket IPC manualmente antes de confiar no wrapper (`mpv --idle --input-ipc-server=/tmp/mpvsocket &`, depois `echo '{"command":["loadfile","test.mp3"]}' | socat - /tmp/mpvsocket`).
-3. Via `/admin/music`, subir um MP3 de teste e mapear um UID fictício.
+3. Via `/admin/music`, subir um MP3 de teste e mapear um UID fictício. No Pi, onde as 404 faixas já estão em disco, o caminho é `node backend/scripts/import-music.js --dry-run` primeiro, depois sem a flag — e conferir que rodar duas vezes seguidas não duplica nem troca os ids.
 4. Simular o scan pelo endpoint dev-only:
    ```
    curl -X POST localhost:3001/api/nfc-tag/simulate -d '{"uid":"04A224B2","event":"present"}' -H 'Content-Type: application/json'
@@ -258,6 +311,7 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 - `backend/server.js` — novas rotas + wiring de startup
 - `backend/state.js` — extensão com tracks/tags/player state
 - `backend/nfcReader.js`, `backend/musicPlayer.js`, `backend/musicController.js` — novos
+- `backend/scripts/import-music.js` — novo, importação em massa do catálogo
 - `frontend/src/contexts/AppContext.tsx` — fix do bug + novo fluxo de interrupção
 - `frontend/src/services/websocket.ts`, `frontend/src/services/api.ts`
 - `frontend/src/types.ts`
