@@ -103,12 +103,71 @@ Notas:
   the PN532 off your Raspberry Pi 3.3v it will reset randomly and may not respond to commands."*
   A segunda explica por que o LED do módulo fica aceso normalmente: a alimentação existe, e só
   colapsa quando o PN532 energiza o campo RF — exatamente quando precisaria responder.
-- **Divisor resistivo obrigatório no TX do módulo.** Com a placa em 5V, o TXD dela passa a sair
-  em 5V, e os GPIOs do Pi **não são tolerantes a 5V**. As direções são assimétricas:
-  Pi→módulo é seguro (3.3V passa folgado do limiar TTL de ~2.0V), módulo→Pi não é. Divisor só
-  nessa linha: `módulo SDA(TXD) ──[1kΩ]──┬──► Pi pino 10`, com `[2kΩ]` desse nó para o GND.
-  Entrega 5 × 2/3 = 3,33V. A linha Pi pino 8 → módulo SCL(RXD) fica direta.
+- **Divisor resistivo no TX do módulo** — ver subseção logo abaixo.
 - **DIN do MAX98357A** se conecta ao **DOUT** de I2S do Pi (GPIO21) — o Pi transmite os dados de áudio, o DAC só recebe.
+
+### Adaptação de nível no TX do PN532
+
+Consequência direta de alimentar o módulo em 5V: o `SDA`(=TXD) dele passa a sair em 5V, e
+**nenhum GPIO do Raspberry Pi é tolerante a 5V**. As duas direções não são simétricas:
+
+| Direção | Situação |
+|---|---|
+| Pi TXD 3,3V → módulo RXD (5V TTL) | **OK.** O limiar de entrada TTL é ~2,0V, então 3,3V é lido como nível alto |
+| Módulo TXD 5V → Pi RXD (3,3V) | **Risco de dano.** É esta linha que precisa de adaptação |
+
+#### Medir antes de montar
+
+Se houver multímetro: com o módulo em 5V e o fio do TX **desconectado do Pi**, medir a
+tensão no furo `SDA` em repouso. UART fica em nível alto quando ociosa, então essa leitura
+é o nível lógico alto do módulo.
+
+- **~3,3V** → liga direto, divisor desnecessário
+- **~5V** → divisor obrigatório
+
+Placas clone variam, e a medição custa 30 segundos. Sem multímetro, montar o divisor: errar
+para o lado do excesso de cuidado custa dois resistores.
+
+#### O divisor: são DOIS resistores
+
+Um resistor só, em série, **não divide tensão** — apenas limita corrente, apoiando-se nos
+diodos de proteção internos do GPIO. Funciona na prática para muita gente, mas é gambiarra,
+não projeto. O divisor precisa de um em série e outro para o GND:
+
+```
+   fio do SDA(TXD) do módulo ──► linha A
+                                  │
+                               [ 1kΩ ]
+                                  │
+                                linha B ──► jumper para o pino 10 do Pi
+                                  │
+                               [ 2kΩ ]
+                                  │
+                               trilha GND
+```
+
+O que vai para o Pi é o ponto **entre** os dois resistores (linha B): 5 × 2/(1+2) = 3,33V.
+Qualquer par na proporção 1:2 serve — 1k/2k, 10k/20k, 1k/1.8k. Só nessa linha; o pino 8 →
+`SCL`(=RXD) fica direto. Na protoboard não precisa de solda.
+
+#### Por que não basta trocar de GPIO
+
+Pergunta que surgiu e vale registrar: mover o TX para outro pino **não resolve**, por duas
+razões independentes.
+
+1. Nenhum GPIO do Pi é tolerante a 5V — não é característica do pino 10, é de todos.
+2. O RX da UART não é escolhível à vontade. O `/boot/overlays/README` mostra que existem
+   alternativas (`rxd1_pin` aceita 15, 33 ou 41; `rxd0_pin` aceita 15, 33 ou 37), mas
+   **GPIO 33, 37 e 41 não saem no header de 40 pinos** — ele expõe só até o GPIO 27. Na
+   prática, GPIO15 (pino 10) é a única opção fisicamente alcançável.
+
+#### Alternativa: SPI não precisa de adaptação
+
+A página do módulo diz `3.3V TTL SPI` — em SPI os pinos já são 3,3V mesmo com VCC em 5V,
+sem divisor e sem risco. O custo é trocar a chave DIP (`0 | 1`), usar o header de 8 furos, e
+**depender de suporte a SPI na lib Node** — que é justamente o que nos levou a escolher UART.
+Não é o plano atual, mas se o UART continuar problemático depois do 5V, é o caminho
+eletricamente mais limpo e vale reavaliar a escolha da biblioteca nesse cenário.
 
 ## Áudio: configuração confirmada
 
@@ -273,7 +332,9 @@ colapsa só quando o chip energiza o campo RF.
 **Próximos passos, em ordem:**
 
 1. Conferir a chave DIP em HSU (`0 | 0` nessa placa) — custo zero, só olhar.
-2. Mover VCC do pino 1 (3V3) para o pino 2 (5V), **com o divisor 1k/2k no TX do módulo**.
+2. Mover VCC do pino 1 (3V3) para o pino 2 (5V), com a adaptação de nível no TX do módulo
+   — ver "Adaptação de nível no TX do PN532". Se houver multímetro, medir o `SDA` em
+   repouso antes: se der ~3,3V, o divisor é dispensável.
 3. Se ainda mudo, o loopback isola de vez: tirar os dois fios de dados e jumpear o pino 8
    no pino 10 do Pi. Rodar `node backend/scripts/pn532-smoke-test.js --verbose` — se
    aparecerem linhas `<--` (o próprio comando ecoado, terminando em
