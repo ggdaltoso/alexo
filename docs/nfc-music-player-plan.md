@@ -218,17 +218,22 @@ limitação de configuração, é o chip: ele é um DAC + ampli de ganho fixo (o
 Consequência pro projeto: o `setVolume` do `musicPlayer.js` é a **única** forma de
 controlar volume, via volume por software do mpv. Não existe fallback de `amixer`.
 
-**Volume padrão: 45**, calibrado de ouvido com o speaker do projeto. Lembrando que a
-escala do mpv é atenuação: `100` é ganho unitário, então 45 significa 45% da amplitude
-do arquivo — nada é amplificado por software.
+**Volume padrão: 100** (máximo). Lembrando que a escala do mpv é atenuação: `100` é ganho
+unitário, ou seja, o arquivo sai sem alteração — nada é amplificado por software, e acima
+disso só com `--volume-max`, que aí sim ampli­fica e clipa.
 
 Como se chegou nesse número:
 
 | Volume | Resultado |
 |---|---|
 | 30 | limpo, mas baixo demais |
-| 45 | **escolhido** — audível e sem distorção incômoda |
-| 60 | alto o suficiente, mas com distorção perceptível |
+| 45 | melhor, ainda baixo na prática |
+| 60 | audível, com distorção perceptível |
+| 100 | **escolhido** — o speaker do projeto é ineficiente e volume audível importou mais que fidelidade |
+
+Decisão do usuário, com a contrapartida conhecida: a 60 já havia distorção, então a 100 ela
+é maior. Não é clipping de software (100 é unitário) — é o estágio analógico. A correção
+real está na pendência abaixo, não em mexer no volume.
 
 #### Pendência: distorção em volume alto
 
@@ -241,8 +246,10 @@ A hipótese que sobra é o **ganho analógico fixo do MAX98357A**: com o pino `G
 flutuando ele aplica 9dB, e trilhas de jogo são masterizadas quente — 9dB em cima disso
 empurra o speaker de 3W além da excursão do cone.
 
-Caminho quando for retomar (não bloqueia nada, 45 está utilizável): ligar `GAIN` direto
-no `VIN` para baixar o ganho analógico a 6dB e subir o volume do mpv para perto de 100.
+Caminho quando for retomar: com o volume digital já no máximo, não há mais folga por
+software — a única saída é o hardware. Se o problema for volume insuficiente, **subir** o
+ganho (`GAIN` no `GND` = 12dB, ou 100kΩ ao `GND` = 15dB). Se for distorção, **baixar**
+(`GAIN` no `VIN` = 6dB) e aceitar menos volume, ou trocar por um speaker mais eficiente.
 Soa mais alto *e* mais limpo, e ainda melhora a relação sinal-ruído, porque menos
 atenuação digital deixa mais resolução. Tabela do pino:
 
@@ -376,7 +383,7 @@ consultar antes de qualquer nova hipótese elétrica.
 
 - Tracks, com persistência em `backend/data/music-tracks.json` (igual `gallery.json`): `getTracks()/addTrack()/removeTrack(id)` (removendo também precisa fazer cascade nos mapeamentos de tag que apontam pra ela). Além dessas, `replaceTracks(list)` — **escrita em lote, exigida pelo importador**: chamar `addTrack()` 404 vezes reescreveria o JSON inteiro 404 vezes, que é exatamente o padrão de I/O que a galeria já ilustra como problema no Pi Zero.
 - Mapeamentos de tag, em `backend/data/nfc-tags.json`: `getTagMappings()/getTagMapping(uid)/setTagMapping({uid,trackId})/removeTagMapping(uid)`.
-- Estado do player: **puramente em memória, sem persistir em disco** (mesmo tratamento que o já existente `state.message`) — `getPlayerState()/setPlayerState(partial)`, shape inicial `{trackId:null, title:null, filename:null, isPlaying:false, position:0, duration:null, volume:45, activeTagUid:null, pausedUid:null}`. O padrão de 45 foi calibrado de ouvido no hardware real (ver seção de áudio abaixo), não chutado. `pausedUid` guarda a última tag pausada, usado pelo `musicController` pra decidir resume vs. restart (ver acima). Motivo de não persistir: posição de playback muda o tempo todo, persistir em JSON a cada tick faria I/O de disco constante no Pi Zero — igual ao alerta que a própria galeria já ilustra (toda leitura/escrita reabre o arquivo inteiro).
+- Estado do player: **puramente em memória, sem persistir em disco** (mesmo tratamento que o já existente `state.message`) — `getPlayerState()/setPlayerState(partial)`, shape inicial `{trackId:null, title:null, filename:null, isPlaying:false, position:0, duration:null, volume:100, activeTagUid:null, pausedUid:null}`. O padrão de 100 foi decidido de ouvido no hardware real (ver seção de áudio abaixo), não chutado. `pausedUid` guarda a última tag pausada, usado pelo `musicController` pra decidir resume vs. restart (ver acima). Motivo de não persistir: posição de playback muda o tempo todo, persistir em JSON a cada tick faria I/O de disco constante no Pi Zero — igual ao alerta que a própria galeria já ilustra (toda leitura/escrita reabre o arquivo inteiro).
 
 ### Importação em massa das faixas — `backend/scripts/import-music.js`
 
