@@ -197,6 +197,20 @@ class PN532I2C:
             return None
         return raw[1:]
 
+    def abort(self):
+        """
+        Cancela o comando pendente.
+
+        O manual do PN532 define que o host manda um frame de ACK para abortar
+        o comando em curso. Sem isso, um InListPassiveTarget que expirou sem
+        achar tag continua rodando no chip, e o próximo comando chega em cima
+        dele -- as respostas saem trocadas e a detecção fica intermitente.
+        """
+        try:
+            self._write(ACK_FRAME)
+        except BusError:
+            pass
+
     def send_command(self, data, response_len, timeout=1.0):
         """Envia um comando, confirma o ACK e devolve o payload da resposta."""
         try:
@@ -212,6 +226,7 @@ class PN532I2C:
 
         frame = self.read_frame(response_len, timeout)
         if frame is None:
+            self.abort()
             return None, "ACK recebido, mas nenhum frame de resposta"
 
         # 00 00 FF LEN LCS TFI ...dados DCS 00
@@ -299,7 +314,7 @@ def phase_poll(dev, timeout_s):
 
     while time.monotonic() < deadline:
         payload, err = dev.send_command(
-            [CMD_IN_LIST_PASSIVE_TARGET, 0x01, 0x00], 25, timeout=0.6
+            [CMD_IN_LIST_PASSIVE_TARGET, 0x01, 0x00], 25, timeout=0.8
         )
 
         if err or not payload or payload[0] != 0x4B:

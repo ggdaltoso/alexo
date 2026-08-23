@@ -65,14 +65,18 @@ Conexões físicas no header de 40 pinos do Pi Zero W (os pinos de I2S e UART s�
 Raspberry Pi Zero W — GPIO header (40 pinos)
 ─────────────────────────────────────────────
 
-PN532 V3 — header de 4 furos (chaves SW1=0, SW2=0 → modo HSU)
+PN532 V3 — header de 4 furos (chaves SW1=1, SW2=0 → modo I2C)  [CONFIRMADO FUNCIONANDO]
   Esse header é dual-purpose: rótulos SDA/SCL impressos na frente (modo I2C),
   rótulos TXD/RXD impressos no verso da placa (modo HSU) — mesmos furos físicos.
 
-    VCC             <──  5V           (pin 2)   ← NÃO usar o 3V3, ver nota abaixo
+    VCC             <──  3V3          (pin 1)
     GND             <──  GND          (pin 6)
-    SDA (= TXD/HSU) ──►  RXD/GPIO15   (pin 10)  ← via 1kΩ em série, ver nota
-    SCL (= RXD/HSU) <──  TXD/GPIO14   (pin 8)   ← direto, sem divisor
+    SDA             <──> GPIO15       (pin 10)
+    SCL             <──> GPIO14       (pin 8)
+
+  I2C por software (driver i2c-gpio) nesses pinos, em /dev/i2c-3 — o GPIO14/15 não
+  tem função de I2C em hardware. Sem resistor em série e sem divisor: I2C é
+  open-drain e, com VCC em 3,3V, nada no barramento passa de 3,3V.
 
   Header de 8 furos (SCK/MISO/MOSI/SS/VCC/GND/IRQ/RSTO) — usado só em modo SPI,
   sem uso no projeto (IRQ/RSTO não são necessários pro polling via scanTag()).
@@ -94,7 +98,9 @@ NFC tag (NTAG213/215/216) ──► sem fio, só aproximação 13.56MHz da anten
 
 Notas:
 - **Ressalva de UART**: no Pi Zero W, o Bluetooth ocupa o UART primário (PL011) por padrão, deixando só a mini-UART (`/dev/ttyS0`) exposta em GPIO14/15. Testar essa primeiro; se instável, adicionar `dtoverlay=disable-bt` em `/boot/config.txt` pra liberar o UART completo (ver seção de verificação abaixo).
-- **VCC do PN532 vai no 5V, não no 3V3.** Esta nota já disse o contrário e estava errada —
+- ~~**VCC do PN532 vai no 5V, não no 3V3.**~~ **Refutado em 23/08/2026**: funciona em 3,3V.
+  O texto abaixo é o raciocínio da época, mantido só como histórico. Nota original:
+  Esta nota já disse o contrário e estava errada —
   a versão anterior recomendava 3.3V "pra bater com o nível lógico do Pi", e essa é a causa
   provável do módulo nunca ter respondido (ver diagnóstico abaixo). Duas fontes independentes:
   a página do módulo diz *"On-board level shifter, Standard 5V TTL for I2C and UART, 3.3V TTL
@@ -106,7 +112,13 @@ Notas:
 - **Resistor de 1kΩ em série no TX do módulo** — ver subseção logo abaixo.
 - **DIN do MAX98357A** se conecta ao **DOUT** de I2S do Pi (GPIO21) — o Pi transmite os dados de áudio, o DAC só recebe.
 
-### Adaptação de nível no TX do PN532
+### Adaptação de nível no TX do PN532 (histórico — não se aplica mais)
+
+> **Obsoleto.** Esta seção inteira parte de "o módulo precisa de 5V", que foi refutado:
+> ele roda em 3,3V. Em I2C, que é a configuração adotada, não há adaptação de nível a
+> fazer. Mantido porque a análise de divisor vs. resistor em série continua correta em
+> si, e serve se algum dia o módulo precisar mesmo ir para 5V.
+
 
 Consequência direta de alimentar o módulo em 5V: o `SDA`(=TXD) dele passa a sair em 5V, e
 **nenhum GPIO do Raspberry Pi é tolerante a 5V**. As duas direções não são simétricas:
@@ -411,9 +423,16 @@ foi tocado. Cuidado ao instalar coisas aqui: a imagem é antiga e a orientação
 mexer o mínimo — usar `apt-get install -s` (simulação) antes e conferir que o resumo diz
 `0 upgraded, 0 to remove`, nunca rodar `apt upgrade`.
 
-## NFC: diagnóstico em aberto (23/08/2026)
+## NFC: resolvido em 23/08/2026 — o módulo funciona em I2C
 
-O módulo **não responde**. Zero bytes de retorno. Estado da investigação:
+> **RESOLVIDO.** O PN532 lê tags de forma confiável em I2C, alimentado em 3,3V, nos mesmos
+> pinos que já estavam soldados. O que segue nesta seção é o histórico da investigação do
+> HSU, mantido porque explica de onde vêm as decisões — mas as conclusões elétricas dele
+> (precisa de 5V, precisa de resistor em série) foram **refutadas na prática**. Pule para
+> "Pivô para I2C".
+
+Histórico. O módulo **não respondia** em HSU. Zero bytes de retorno. Estado da investigação
+naquele momento:
 
 **Descartado — o lado do Pi está inteiramente sadio:**
 
@@ -505,63 +524,91 @@ outro regulador —, mas como em I2C o teste a 3,3V é gratuito e sem risco, é 
 Se o `0x24` não aparecer a 3,3V, aí a hipótese do 5V volta com força, e o custo dela em I2C
 é o level shifter do aviso acima.
 
-#### Nova fiação (I2C)
+#### O que de fato funcionou: `i2c-gpio` nos pinos que já estavam soldados
+
+A proposta inicial desta seção era mover `SDA` para o pino 3 e `SCL` para o pino 5, "sem
+precisar de solda". **Isso estava errado para este build.** O módulo está soldado direto no
+header do Pi, sem protoboard e sem jumper — as duas pontas de cada fio são juntas de solda.
+Mover para os pinos 3/5 exigiria dessoldar, ou seja, exatamente o que estava bloqueado.
+
+A saída foi não mover nada. O Linux tem o driver `i2c-gpio`, que faz I2C por software
+(bit-banging) em **qualquer** par de GPIOs. O BCM2835 não oferece função de I2C em hardware
+no GPIO14/15 — nenhum modo ALT desses pinos é I2C —, mas por software isso deixa de importar.
+O barramento nasceu em cima da fiação existente:
 
 ```
-PN532 V3 — mesmo header de 4 furos, chave DIP em I2C (1 | 0)
+PN532 V3 — fiação inalterada, só a chave DIP mudou para I2C (1 | 0)
 
-    VCC             <──  3V3          (pin 1)   ← fica onde já está
-    GND             <──  GND          (pin 6)   ← fica onde já está
-    SDA (= TXD/HSU) <──> SDA1/GPIO2   (pin 3)   ← sai do pino 10
-    SCL (= RXD/HSU) <──> SCL1/GPIO3   (pin 5)   ← sai do pino 8
+    VCC             <──  3V3          (pin 1)   ← 3,3V basta; ver refutação abaixo
+    GND             <──  GND          (pin 6)
+    SDA             <──> GPIO15       (pin 10)  ← mesma solda, agora falando I2C
+    SCL             <──> GPIO14       (pin 8)   ← mesma solda, agora falando I2C
 ```
 
-Sem resistor em série, sem divisor. As setas são bidirecionais porque em I2C ambas as
-linhas são.
-
-#### Lado do Pi: já está pronto
-
-Feito em 23/08/2026, tudo verificado:
+Sem resistor em série, sem divisor, sem dessoldar. Configuração:
 
 ```bash
-sudo apt-get install -y i2c-tools     # 0 upgraded, 3 newly installed, 0 to remove
-sudo dtparam i2c_arm=on               # aplica em runtime, sem reboot
-sudo modprobe i2c-dev                 # cria o /dev/i2c-1
+# runtime, sem reboot
+sudo dtoverlay i2c-gpio i2c_gpio_sda=15 i2c_gpio_scl=14 bus=3
+
+# persistente, em /boot/config.txt (backup: config.txt.bak-pre-i2cgpio)
+dtoverlay=i2c-gpio,i2c_gpio_sda=15,i2c_gpio_scl=14,bus=3
 ```
 
-Persistência: `dtparam=i2c_arm=on` em `/boot/config.txt` (backup em
-`/boot/config.txt.bak-pre-i2c`) e `i2c-dev` em `/etc/modules`. O usuário `pi` já pertencia
-ao grupo `i2c`. O `i2cdetect -y 1` roda e devolve a tabela vazia — que é o baseline correto
-com nada conectado no GPIO2/3. Nenhum conflito com o áudio: I2S usa GPIO18/19/21, I2C usa
-GPIO2/3.
+O barramento de hardware (`/dev/i2c-1`, GPIO2/3) continua habilitado e não é usado pelo
+PN532 — fica disponível para outros periféricos. O PN532 está no **`/dev/i2c-3`**, e todo
+comando precisa de `--bus 3`. O `enable_uart=1` continua no `config.txt` sem causar
+conflito: o overlay tomou os pinos do ALT5 sem reclamar, tanto em runtime quanto no boot.
 
-O `i2cdetect` fica em `/usr/sbin`, que **não** está no PATH de um `ssh host "cmd"`
-não-interativo. Ou usa caminho completo, ou `export PATH=/usr/sbin:$PATH`.
+#### Resultado
 
-#### `backend/scripts/pn532-i2c-probe.py`
+```
+$ i2cdetect -y 3
+20: -- -- -- -- 24 -- -- -- -- -- -- -- -- -- -- --
 
-Contraparte em I2C do `pn532-smoke-test.js`, com a mesma filosofia: zero dependências, pra
-que uma falha seja inequivocamente do hardware e não de um addon nativo que não compilou no
-ARMv6. Aqui isso obrigou a sair do Node — falar I2C cru exige `ioctl(I2C_SLAVE)`, que o Node
-não faz sem addon nativo (`i2c-bus`), justamente a dependência que o teste quer evitar. O
-`fcntl` da stdlib do Python 3 faz sem instalar nada. É script de diagnóstico, não código de
-aplicação.
-
-Quatro fases, iguais às do smoke test de HSU: abrir o barramento → `GetFirmwareVersion` →
-`SAMConfiguration` → polling de `InListPassiveTarget` com detecção de tag presente/removida
-e identificação do tipo por SAK.
-
-```bash
-ssh pi@<ip> 'cd /home/pi/alexo && python3 backend/scripts/pn532-i2c-probe.py --verbose'
+$ python3 backend/scripts/pn532-i2c-probe.py --bus 3
+OK  o módulo respondeu — IC 0x32, firmware 1.6
+    suporta: ISO14443A, ISO14443B, ISO18092
+OK  configurado — pronto pra ler tags
+    tag presente  UID 693B9D29  (4 bytes)  →  Mifare Classic 1K
+    tag removida  693B9D29
+OK  11 leitura(s) de tag. O hardware NFC está funcionando.
 ```
 
-Já validado no Pi com nada conectado: falha na fase 2 com o `errno 121` traduzido e a
-checklist de causas elétricas, sem stack trace.
+Onze ciclos de presença/remoção, UID estável, tipo consistente.
 
-#### Próximo passo
+**Causa raiz do silêncio no HSU: indeterminada.** A chave DIP não tinha sido verificada
+visualmente durante os testes de UART (era o passo 1 da lista "próximos passos", nunca
+executado) e desde então foi movida para `1 | 0`. Se ela estivesse em I2C naquele período,
+explica tudo sozinha — o módulo ignoraria a serial por design. Não dá para provar
+retroativamente, e não vale desfazer uma configuração que funciona só para descobrir.
 
-Físico, e é rápido: chave DIP para `1 | 0`, jumper do pino 10 → pino 3, jumper do pino 8 →
-pino 5, VCC continua no pino 1. Depois `i2cdetect -y 1` — se o `0x24` aparecer, rodar o probe.
+**Duas hipóteses refutadas na prática:**
+
+| Hipótese | Veredito |
+|---|---|
+| O PN532 precisa de 5V; o regulador 3,3V do Pi não dá conta (`pn532pi`) | **Falsa para esta placa.** Roda em 3,3V respondendo a todos os comandos e energizando o campo RF |
+| O TX do módulo precisa de 1kΩ em série para não danificar o GPIO | **Desnecessária.** Nunca foi instalado. Em open-drain a 3,3V o problema não existe |
+
+Ambas custaram tempo. A lição prática: o `i2cdetect` teria dado uma resposta binária no
+primeiro dia, e a escolha do HSU nos privou desse sinal durante toda a investigação.
+
+#### Sobre o tipo da tag: Mifare Classic 1K
+
+O SAK `0x08` identifica Mifare Classic 1K. Historicamente isso era um divisor de águas na
+escolha de biblioteca (a lib UART suporta NTAG e não Classic; a I2C, o contrário), **mas
+para este projeto é irrelevante**: o design mapeia UID → faixa, e o UID vem do
+`InListPassiveTarget`, que é parte do ISO14443A e funciona igual para qualquer tag dessa
+família. Ler *memória* da tag é que exigiria autenticação e aí o tipo importaria — não é o
+caso. Qualquer tag ISO14443A serve, Classic ou NTAG.
+
+#### Detalhe de protocolo: abortar o comando pendente
+
+Quando o `InListPassiveTarget` expira sem achar tag, o comando **continua rodando no chip**.
+O manual do PN532 define que o host cancela mandando um frame de ACK. Sem isso, o próximo
+comando chega em cima do anterior e as respostas saem trocadas — a detecção fica
+intermitente de um jeito que parece problema elétrico. O `pn532-i2c-probe.py` faz esse
+abort (`PN532I2C.abort()`), e qualquer implementação no backend precisa fazer o mesmo.
 
 #### Impacto na escolha de biblioteca
 
