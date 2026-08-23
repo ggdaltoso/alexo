@@ -15,6 +15,12 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads', 'gallery');
 
+// uploads/ e data/ são deliberadamente excluídos do deploy (é conteúdo que vive
+// no Pi, não no repo), então nada os cria por lá -- num Pi novo, ou se alguém
+// apagar a pasta, o primeiro upload falhava com ENOENT depois de já ter aceitado
+// o arquivo. Criar na subida é mais barato que documentar um passo manual.
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {

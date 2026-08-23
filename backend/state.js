@@ -1,7 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const GALLERY_FILE = path.join(__dirname, 'data', 'gallery.json');
+const DATA_DIR = path.join(__dirname, 'data');
+const GALLERY_FILE = path.join(DATA_DIR, 'gallery.json');
+
+// data/ não é sincronizado pelo deploy -- ver o comentário em server.js.
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
 let state = {
   message: null,
@@ -20,7 +24,13 @@ function updateMessage({ type, message }) {
 function readGallery() {
   try {
     return JSON.parse(fs.readFileSync(GALLERY_FILE, 'utf-8'));
-  } catch {
+  } catch (err) {
+    // Arquivo ainda não existe é o caso normal na primeira execução.
+    // Qualquer outro erro (JSON corrompido, permissão) precisa aparecer: tratar
+    // como "galeria vazia" faria a próxima escrita apagar tudo em silêncio.
+    if (err.code !== 'ENOENT') {
+      console.error(`Falha ao ler ${GALLERY_FILE}:`, err.message);
+    }
     return [];
   }
 }
