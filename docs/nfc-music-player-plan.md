@@ -612,13 +612,47 @@ comando chega em cima do anterior e as respostas saem trocadas — a detecção 
 intermitente de um jeito que parece problema elétrico. O `pn532-i2c-probe.py` faz esse
 abort (`PN532I2C.abort()`), e qualquer implementação no backend precisa fazer o mesmo.
 
-#### Impacto na escolha de biblioteca
+#### Escolha de biblioteca: cliente próprio sobre `i2c-bus`
 
-O plano original já era I2C (`pn532-i2c`); a migração para UART veio do receio com addon
-nativo em ARMv6. Se o hardware responder em I2C, essa decisão precisa ser reaberta — as
-opções são `pn532-i2c` + `i2c-bus` (addon nativo, precisa compilar), ou um cliente I2C
-próprio em Node, ou manter o leitor em Python conversando com o backend. Decidir só depois
-do `0x24` aparecer; não vale gastar essa escolha antes de ter hardware confirmado.
+Decidido depois de testar as opções no Pi real, não por leitura de README.
+
+**`i2c-bus` compila e funciona.** Era o maior risco (addon nativo em ARMv6/Node 14) e está
+descartado: `i2c-bus@5.2.3` compilou em **3m13s** e conversou com o módulo a partir do Node,
+retornando `IC 0x32, firmware 1.6`. Isso elimina a necessidade de um sidecar em Python — o
+backend pode ser dono do leitor.
+
+**`pn532-i2c@2.0.0` está descartada, por dois motivos independentes:**
+
+1. *Não carrega.* `src/i2c/commands/Command.js` linha 1 é `import { ERRORS } from
+   "../constants";`, sem o `.js`. O resolvedor de ESM do Node exige extensão explícita, então
+   o pacote morre com `ERR_MODULE_NOT_FOUND` no `import`. Todos os outros arquivos do pacote
+   usam `.js` — é um deslize único, do tipo que só passa quando se testa via bundler.
+   Contornar exigiria patch em `node_modules` ou fork.
+2. *Incompatibilidade de módulo.* O pacote é ESM puro (`"type": "module"`); o backend é
+   `"type": "commonjs"` e usa `require()` em tudo. CJS não consegue `require()` um ESM —
+   precisaria de `import()` dinâmico, que contamina a inicialização com async à toa.
+
+A lib tem coisas boas — expõe `bus` configurável (`new PN532({ i2c: { bus: 3 } })`) e emite
+`tag`/`vanish`, que é exatamente o par de eventos que o `nfcReader.js` precisa. Vale
+reavaliar se algum dia ela for corrigida.
+
+**Decisão: `backend/nfcReader.js` fala `i2c-bus` diretamente.** O projeto precisa de três
+comandos (`GetFirmwareVersion`, `SAMConfiguration`, `InListPassiveTarget`) e de comparar UIDs
+entre polls. Já existe código de referência funcionando para tudo isso — o
+`pn532-i2c-probe.py` e o teste em Node — incluindo o detalhe não-óbvio do abort por ACK.
+São ~150 linhas sem atrito de ESM/CJS, e mantém a contagem de dependências baixa num Pi Zero.
+
+O contrato do módulo não muda em relação ao que o plano já previa: `init()` em `try/catch`
+(se `/dev/i2c-3` não existir, loga e segue — é o que permite rodar o backend na máquina de
+dev), e eventos `'tag-present'`/`'tag-vanish'` com o UID normalizado.
+
+**Implicação no deploy:** `i2c-bus` entra no `backend/package.json`, então o
+`npm install --production` do `scripts/deploy.sh` vai compilá-lo no Pi. O primeiro deploy
+depois disso leva ~3min a mais. Os seguintes reaproveitam o build.
+
+**Configuração de runtime:** o barramento é o **3** (`/dev/i2c-3`), não o 1. Vale expor como
+variável de ambiente em vez de constante — a máquina de dev não tem barramento nenhum, e um
+Pi diferente pode numerar diferente.
 
 ## Bug pré-existente a corrigir como pré-requisito
 
