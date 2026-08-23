@@ -866,6 +866,16 @@ Consequências para o player de música, que simplificam o desenho original:
 - Sem supervisor pro `mpv`: se o processo Express cair, o `mpv` cai junto (filho do
   processo) — aceitável pro v1, sem retry automático. A instância ociosa também **não
   sobrevive a um reboot**; virar unit systemd na hora de implementar o player.
+- **Os units têm `Restart=always` desde 23/08/2026.** Não tinham: os arquivos no Pi
+  (`/home/pi/alexo.service` e `/home/pi/alexo-display.service`, linkados de
+  `/etc/systemd/system/`) haviam divergido do que o README documenta, e por isso um crash
+  no upload da galeria deixou o dashboard morto por 23 minutos. Backups em
+  `*.service.bak-pre-restart`. Verificado com `systemctl kill -s SIGKILL`: volta sozinho em
+  ~39s (10s de `RestartSec` + ~25s de subida).
+- **O backend leva ~25s para começar a escutar nesse Pi.** Checar logo depois de um deploy
+  ou restart dá falso negativo — esperar a porta responder antes de concluir qualquer coisa.
+- Os units vivem só no Pi, não no repo, e já divergiram uma vez. Se voltar a incomodar,
+  vale versioná-los e sincronizá-los pelo `scripts/deploy.sh`.
 
 ## Arquivos críticos
 
