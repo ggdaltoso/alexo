@@ -292,6 +292,61 @@ mpv --idle=yes --no-video --audio-device=alsa/hw:0,0 --volume=30 \
     --input-ipc-server=/tmp/mpvsocket
 ```
 
+#### Comandos manuais para testar áudio no Pi
+
+Úteis para reproduzir som sem nenhum código do projeto rodando. Todos verificados no Pi.
+
+**Subir o mpv ocioso** (uma vez; depois cada reprodução é instantânea):
+
+```bash
+setsid nohup mpv --idle=yes --no-video --audio-device=alsa/hw:0,0 --volume=100 \
+  --input-ipc-server=/tmp/mpvsocket >/tmp/mpv.log 2>&1 </dev/null &
+```
+
+Lembrar dos ~11s até o socket aparecer. Esperar por ele:
+`for i in $(seq 1 60); do [ -S /tmp/mpvsocket ] && break; sleep 0.5; done`
+
+**Tocar** (o `socat` não está instalado; o `nc -U` está e funciona):
+
+```bash
+printf '{"command":["loadfile","/caminho/arquivo.mp3"]}\n' | nc -U -q1 /tmp/mpvsocket
+```
+
+Demais comandos, mesmo formato — a resposta vem como `{"data":...,"error":"success"}`:
+
+| Ação | JSON |
+|---|---|
+| pausar | `{"command":["set_property","pause",true]}` |
+| retomar | `{"command":["set_property","pause",false]}` |
+| parar | `{"command":["stop"]}` |
+| volume | `{"command":["set_property","volume",100]}` |
+| posição | `{"command":["get_property","time-pos"]}` |
+| duração | `{"command":["get_property","duration"]}` |
+
+Para sequências com temporização (tocar N segundos e parar), o `nc` fica desajeitado porque
+cada invocação abre e fecha a conexão. Nesses casos vale um Python inline, que mantém o
+socket aberto:
+
+```bash
+python3 - <<'SCRIPT'
+import socket, json, time
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.connect("/tmp/mpvsocket")
+def cmd(*a):
+    s.sendall((json.dumps({"command": list(a)}) + "\n").encode()); time.sleep(0.3)
+cmd("loadfile", "/caminho/arquivo.mp3")
+time.sleep(20)
+cmd("stop")
+SCRIPT
+```
+
+**Sem mpv ocioso**, para um teste solto — mais simples, mas paga os ~11s de startup:
+
+```bash
+mpv --no-video --audio-device=alsa/hw:0,0 --volume=100 "/caminho/arquivo.mp3"
+```
+
+Acrescentar `--length=20` para limitar a duração.
+
 #### Instância órfã de mpv: matar antes de subir a própria
 
 Um mpv ocioso consome **~43MB RSS (9,7%)** nesse Pi, que tem 430MB no total. CPU ocioso é
