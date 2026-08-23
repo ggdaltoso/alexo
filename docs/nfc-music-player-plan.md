@@ -69,10 +69,10 @@ PN532 V3 — header de 4 furos (chaves SW1=0, SW2=0 → modo HSU)
   Esse header é dual-purpose: rótulos SDA/SCL impressos na frente (modo I2C),
   rótulos TXD/RXD impressos no verso da placa (modo HSU) — mesmos furos físicos.
 
-    VCC             <──  3V3          (pin 1)
+    VCC             <──  5V           (pin 2)   ← NÃO usar o 3V3, ver nota abaixo
     GND             <──  GND          (pin 6)
-    SDA (= TXD/HSU) ──►  RXD/GPIO15   (pin 10)
-    SCL (= RXD/HSU) <──  TXD/GPIO14   (pin 8)
+    SDA (= TXD/HSU) ──►  RXD/GPIO15   (pin 10)  ← via divisor 1k/2k, ver nota
+    SCL (= RXD/HSU) <──  TXD/GPIO14   (pin 8)   ← direto, sem divisor
 
   Header de 8 furos (SCK/MISO/MOSI/SS/VCC/GND/IRQ/RSTO) — usado só em modo SPI,
   sem uso no projeto (IRQ/RSTO não são necessários pro polling via scanTag()).
@@ -94,7 +94,20 @@ NFC tag (NTAG213/215/216) ──► sem fio, só aproximação 13.56MHz da anten
 
 Notas:
 - **Ressalva de UART**: no Pi Zero W, o Bluetooth ocupa o UART primário (PL011) por padrão, deixando só a mini-UART (`/dev/ttyS0`) exposta em GPIO14/15. Testar essa primeiro; se instável, adicionar `dtoverlay=disable-bt` em `/boot/config.txt` pra liberar o UART completo (ver seção de verificação abaixo).
-- **VCC do PN532**: usar 3.3V pra bater com o nível lógico do Pi, a menos que o manual do módulo específico confirme que os pinos de UART são tolerantes a 5V.
+- **VCC do PN532 vai no 5V, não no 3V3.** Esta nota já disse o contrário e estava errada —
+  a versão anterior recomendava 3.3V "pra bater com o nível lógico do Pi", e essa é a causa
+  provável do módulo nunca ter respondido (ver diagnóstico abaixo). Duas fontes independentes:
+  a página do módulo diz *"On-board level shifter, Standard 5V TTL for I2C and UART, 3.3V TTL
+  SPI"* — o shifter precisa do 5V como referência; e a doc da lib `pn532pi` diz *"The Raspberry
+  Pi 3.3v regulator does not provide enough current to drive the PN532 chip. If you try to run
+  the PN532 off your Raspberry Pi 3.3v it will reset randomly and may not respond to commands."*
+  A segunda explica por que o LED do módulo fica aceso normalmente: a alimentação existe, e só
+  colapsa quando o PN532 energiza o campo RF — exatamente quando precisaria responder.
+- **Divisor resistivo obrigatório no TX do módulo.** Com a placa em 5V, o TXD dela passa a sair
+  em 5V, e os GPIOs do Pi **não são tolerantes a 5V**. As direções são assimétricas:
+  Pi→módulo é seguro (3.3V passa folgado do limiar TTL de ~2.0V), módulo→Pi não é. Divisor só
+  nessa linha: `módulo SDA(TXD) ──[1kΩ]──┬──► Pi pino 10`, com `[2kΩ]` desse nó para o GND.
+  Entrega 5 × 2/3 = 3,33V. A linha Pi pino 8 → módulo SCL(RXD) fica direta.
 - **DIN do MAX98357A** se conecta ao **DOUT** de I2S do Pi (GPIO21) — o Pi transmite os dados de áudio, o DAC só recebe.
 
 ## Áudio: configuração confirmada
@@ -235,6 +248,40 @@ Fica registrado porque afeta qualquer instalação futura nesse Pi, não só o m
 foi tocado. Cuidado ao instalar coisas aqui: a imagem é antiga e a orientação do usuário é
 mexer o mínimo — usar `apt-get install -s` (simulação) antes e conferir que o resumo diz
 `0 upgraded, 0 to remove`, nunca rodar `apt upgrade`.
+
+## NFC: diagnóstico em aberto (23/08/2026)
+
+O módulo **não responde**. Zero bytes de retorno. Estado da investigação:
+
+**Descartado — o lado do Pi está inteiramente sadio:**
+
+- `/dev/serial0 → ttyS0` existe (exigiu `enable_uart=1` e remover `console=serial0,115200`
+  do `cmdline.txt`, ambos já feitos)
+- `raspi-gpio get 14,15` → `alt=5 func=TXD1` / `func=RXD1` — os pinos estão muxados na
+  mini-UART
+- nenhum processo segurando a porta (`fuser`), usuário no grupo `dialout`
+- os frames saem corretos na linha: `00 00 ff 02 fe d4 02 2a 00` é o `GetFirmwareVersion`
+  canônico, conferido byte a byte
+- **duas implementações independentes** (o smoke test em Node e um probe em Python puro
+  com `termios`) recebem zero bytes. Não é bug de código nem falta de biblioteca.
+
+**Causa provável: VCC em 3.3V.** Ver as notas da seção de fiação — duas fontes
+independentes dizem que o PN532 precisa de 5V, e a doc da `pn532pi` descreve o sintoma
+exato ("may not respond to commands"). O LED aceso não descarta isso: a alimentação
+colapsa só quando o chip energiza o campo RF.
+
+**Próximos passos, em ordem:**
+
+1. Conferir a chave DIP em HSU (`0 | 0` nessa placa) — custo zero, só olhar.
+2. Mover VCC do pino 1 (3V3) para o pino 2 (5V), **com o divisor 1k/2k no TX do módulo**.
+3. Se ainda mudo, o loopback isola de vez: tirar os dois fios de dados e jumpear o pino 8
+   no pino 10 do Pi. Rodar `node backend/scripts/pn532-smoke-test.js --verbose` — se
+   aparecerem linhas `<--` (o próprio comando ecoado, terminando em
+   `TFI inesperado na resposta: 0xd4`), a UART do Pi está perfeita e o defeito é do módulo.
+
+**Nota sobre a `pn532pi`:** é uma lib Python, não serve pro projeto (que é Node), mas a
+documentação dela é a melhor referência de hardware que encontramos até agora. Vale
+consultar antes de qualquer nova hipótese elétrica.
 
 ## Bug pré-existente a corrigir como pré-requisito
 
