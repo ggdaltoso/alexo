@@ -162,43 +162,87 @@ In production, the backend serves both the API and the frontend static files on 
 
 ### Deploy to Raspberry Pi
 
-1. Build the project locally:
+Day-to-day deploys are a single command:
+
+```bash
+npm run deploy
+```
+
+| Script | What it does |
+|---|---|
+| `npm run deploy` | Builds the frontend, syncs files, installs backend deps, restarts the services |
+| `npm run deploy:dry` | Shows what *would* be sent — changes nothing on the Pi |
+| `npm run deploy:fast` | Skips the frontend build, sends the current `dist` |
+| `npm run deploy:no-restart` | Sends files but leaves the services running the old code |
+
+All four accept extra flags after `--`:
+
+```bash
+npm run deploy -- --host pi@192.168.1.50
+npm run deploy:dry -- --path /srv/alexo
+```
+
+Set the target once in `.env.deploy` at the repo root (gitignored):
+
+```bash
+ALEXO_DEPLOY_HOST=pi@192.168.1.50
+ALEXO_DEPLOY_PATH=/home/pi/alexo
+```
+
+Precedence is **flag > environment variable > `.env.deploy` > default**.
+
+#### What the deploy never touches
+
+This content exists only on the Pi and is deliberately excluded:
+
+| Path | Why |
+|---|---|
+| `backend/data/` | `gallery.json` and other persisted state |
+| `backend/uploads/` | gallery images (and, later, music files) |
+| `.env` | production config, including the Todoist token |
+| `node_modules/` | reinstalled on the Pi — it has native addons |
+
+`rsync` runs **without `--delete`**, so a deploy never removes files from the Pi.
+
+Note that `rsync` only lists files that actually differ. An empty file list under
+`[backend — ...]` means the Pi is already up to date, not that the step was skipped.
+
+#### First-time setup
+
+The deploy script assumes the Pi is already prepared. Do this once:
+
+1. Set up passwordless ssh (the script refuses to start without it, so that
+   `rsync` does not prompt for a password mid-deploy):
    ```bash
-   npm run build
+   ssh-copy-id pi@<raspberry-pi-ip>
    ```
 
-2. Copy the entire project to your Raspberry Pi:
+2. Create the target directory and drop in the production environment file:
    ```bash
-   scp -r . pi@<raspberry-pi-ip>:/home/pi/alexo
+   ssh pi@<raspberry-pi-ip> "mkdir -p /home/pi/alexo"
+   scp .env.production pi@<raspberry-pi-ip>:/home/pi/alexo/.env
    ```
 
-3. SSH into the Raspberry Pi and configure environment:
+3. Run the first deploy without restarting (the services do not exist yet):
    ```bash
-   ssh pi@<raspberry-pi-ip>
-   cd /home/pi/alexo
-   
-   # Copy production environment file
-   cp .env.production .env
-   
-   # Install dependencies
-   npm install
-   cd backend && npm install && cd ..
+   npm run deploy:no-restart
    ```
 
-4. Start the server:
-   ```bash
-   npm start
-   ```
+4. Create the systemd services (next section). After that, plain
+   `npm run deploy` handles everything.
 
-5. Open Chromium in kiosk mode:
-   ```bash
-   chromium-browser --kiosk --incognito --disable-infobars http://localhost:3001
-   ```
+To run the server by hand instead of via systemd:
 
+```bash
+ssh pi@<raspberry-pi-ip>
+cd /home/pi/alexo && npm start
+chromium-browser --kiosk --incognito --disable-infobars http://localhost:3001
+```
 
-#### Optional: Create Systemd Service to Run on Boot
+#### Create Systemd Services to Run on Boot
 
-To automatically launch Alexo on boot, create a systemd service:
+These are what `npm run deploy` restarts at the end of a deploy, and what
+launches Alexo on boot:
 
 1. Create a service file:
    ```bash
@@ -353,6 +397,33 @@ Here are some helpful commands for managing and debugging Alexo:
 - **Start production server (serves both API and frontend)**
   ```bash
   npm start
+  ```
+
+### Deploy
+
+- **Full deploy (build + sync + restart)**
+  ```bash
+  npm run deploy
+  ```
+
+- **Preview what would be sent, without touching the Pi**
+  ```bash
+  npm run deploy:dry
+  ```
+
+- **Skip the frontend build (backend-only change)**
+  ```bash
+  npm run deploy:fast
+  ```
+
+- **Sync files without restarting the services**
+  ```bash
+  npm run deploy:no-restart
+  ```
+
+- **See all flags**
+  ```bash
+  npm run deploy -- --help
   ```
 
 ### Systemd Services (Raspberry Pi)
