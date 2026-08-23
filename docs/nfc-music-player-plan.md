@@ -789,8 +789,8 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 ## Verificação
 
 **Sem hardware físico (dev machine):**
-1. `nfcReader.init()` deve falhar graciosamente sem a porta serial disponível — servidor sobe normalmente.
-2. Instalar `mpv` localmente e validar o socket IPC manualmente antes de confiar no wrapper (`mpv --idle --input-ipc-server=/tmp/mpvsocket &`, depois `echo '{"command":["loadfile","test.mp3"]}' | socat - /tmp/mpvsocket`).
+1. `nfcReader.init()` deve falhar graciosamente sem `/dev/i2c-3` disponível — servidor sobe normalmente. É o caso da máquina de dev, que não tem barramento nenhum.
+2. Instalar `mpv` localmente e validar o socket IPC manualmente antes de confiar no wrapper (`mpv --idle --input-ipc-server=/tmp/mpvsocket &`, depois `printf '{"command":["loadfile","test.mp3"]}\n' | nc -U -q1 /tmp/mpvsocket` — o `socat` não está instalado no Pi, o `nc -U` está).
 3. Via `/admin/music`, subir um MP3 de teste e mapear um UID fictício. No Pi, onde as 404 faixas já estão em disco, o caminho é `node backend/scripts/import-music.js --dry-run` primeiro, depois sem a flag — e conferir que rodar duas vezes seguidas não duplica nem troca os ids.
 4. Simular o scan pelo endpoint dev-only:
    ```
@@ -800,14 +800,36 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 5. Rodar `npm run dev` e confirmar no navegador: navegação automática pra `/music` ao simular presença, progresso avançando, pause funcionando de verdade, e retorno à rota anterior ao simular remoção (testar com faixa >10s pra provar que não é mais timer fixo).
 6. Regressão do bug corrigido: disparar `POST /api/nfc` (mensagem) e um upload de galeria enquanto a música está parada — confirmar que `gallery_updated` não força mais navegação pra `/message`, e que mensagem "ganha" se colidir com um tag-present.
 
-**Só no Pi real:**
-- Colocar a chave do módulo PN532 no modo **HSU/UART** (não I2C).
-- **Smoke test do PN532 antes de qualquer código do projeto**: `node backend/scripts/pn532-smoke-test.js` (`--verbose` mostra os bytes crus, `-d` troca o device). O script fala o protocolo HSU direto na porta serial e **não tem nenhuma dependência** — de propósito, pra separar "problema de fiação" de "problema de compilação de addon nativo". Ele checa o ambiente (device, `enable_uart=1`, console serial ocupando a porta), faz wakeup + `GetFirmwareVersion`, e entra num loop imprimindo UID/SAK de cada tag com detecção de remoção. Serve também pra confirmar na mão que as tags são NTAG (SAK `0x00`, UID de 7 bytes) e não Mifare Classic.
-- UART: no Pi Zero W, o Bluetooth ocupa o UART primário (PL011) por padrão, deixando só a mini-UART (`/dev/ttyS0`) exposta nos pinos GPIO — testar com `/dev/ttyS0` primeiro (é o mesmo caminho que o README da lib recomenda pro Pi 3). Se a mini-UART se mostrar instável (o clock dela varia com a frequência da CPU), o fallback é `dtoverlay=disable-bt` no `/boot/config.txt` pra liberar o UART completo (PL011) nos pinos, desativando o Bluetooth do Pi (sem perda pro projeto, já que o Zero W usa WiFi pra tudo, não Bluetooth).
-- Tags físicas devem ser **NTAG (213/215/216) ou Mifare Ultralight** — os NTAG215 que o usuário já possui servem. O cartão S50 (Mifare Classic) que veio de brinde no kit do PN532 **não vai funcionar** com essa lib — guardar pra outro uso ou descartar.
-- ~~Saída ALSA do MAX98357A~~ — **já validado no hardware, ver "Áudio: configuração confirmada" abaixo**.
-- Instalar `pn532`/`serialport`/`node-mpv` primeiro isolado no Pi (`npm install` numa pasta de teste) antes de integrar tudo — e só depois do smoke test passar, pra não debugar fiação e compilação ao mesmo tempo — `serialport` também compila addon nativo, e o Pi Zero é ARMv6/Node 14, então vale confirmar cedo que a instalação funciona sem binário pré-compilado disponível.
-- Sem supervisor pro `mpv`: se o processo Express cair, o `mpv` cai junto (filho do processo) — aceitável pro v1, sem retry automático.
+**Só no Pi real** (tudo abaixo já foi executado e passou, em 23/08/2026):
+
+- **Chave DIP do PN532 em I2C (`1 | 0`)** — nesta placa, chave 1 para a direita e chave 2
+  para a esquerda. Confirmado por comportamento, não pelo silk.
+- **Barramento**: `i2cdetect -y 3` deve mostrar `0x24`. Resposta binária: se aparecer, o
+  módulo está vivo; se não, o problema é elétrico. É o teste mais barato que existe aqui e
+  deve ser sempre o primeiro.
+- **Probe do PN532 antes de qualquer código do projeto**:
+  `python3 backend/scripts/pn532-i2c-probe.py --bus 3` (`--verbose` mostra os bytes crus).
+  Sem nenhuma dependência, de propósito, para separar "problema de fiação" de "problema de
+  compilação de addon nativo". Checa o barramento, faz `GetFirmwareVersion` e
+  `SAMConfiguration`, e entra num loop imprimindo UID/SAK com detecção de remoção.
+- **Tags**: qualquer ISO14443A serve. O tipo (Mifare Classic, NTAG, Ultralight) **não
+  importa** — o projeto usa só o UID, que vem do `InListPassiveTarget`. O cartão S50 que veio
+  de brinde no kit funciona. Validado com duas tags distintas (`693B9D29` e `41D254B1`),
+  lidas e discriminadas corretamente.
+- **`i2c-bus` compila no Pi** — ~3min13s na primeira vez. Confirmar isolado numa pasta de
+  teste antes de integrar, para não debugar fiação e compilação ao mesmo tempo.
+- ~~Saída ALSA do MAX98357A~~ — **já validado, ver "Áudio: configuração confirmada"**.
+- **Teste de integração ponta a ponta**: com o mpv ocioso, rodar
+  `python3 backend/scripts/nfc-to-music-test.py "<faixa.mp3>" [segundos]`. Ele espera uma tag
+  e, ao ler, dispara a música e imprime a posição avançando. É o mesmo fluxo que o
+  `musicController.js` implementa (só que ali o `loadfile` vem do mapeamento UID → faixa e o
+  `stop` vem do evento de tag removida, em vez de um timer). Serve para revalidar o caminho
+  completo depois de mexer no `nfcReader.js` ou no áudio, sem precisar do backend no ar.
+  **Passou em 23/08/2026**: tag `41D254B1` → `Princess Zelda's Rescue`, 15s de áudio audível
+  com a posição avançando (`t+6.0s`, `t+11.0s`).
+- Sem supervisor pro `mpv`: se o processo Express cair, o `mpv` cai junto (filho do
+  processo) — aceitável pro v1, sem retry automático. A instância ociosa também **não
+  sobrevive a um reboot**; virar unit systemd na hora de implementar o player.
 
 ## Arquivos críticos
 
