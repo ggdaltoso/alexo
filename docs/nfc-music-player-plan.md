@@ -66,6 +66,8 @@ Raspberry Pi Zero W — GPIO header (40 pinos)
 ─────────────────────────────────────────────
 
 PN532 V3 — header de 4 furos (chaves SW1=1, SW2=0 → modo I2C)  [CONFIRMADO FUNCIONANDO]
+  Posição física nesta placa, confirmada por comportamento e não pelo silk:
+  chave 1 para a DIREITA, chave 2 para a ESQUERDA.
   Esse header é dual-purpose: rótulos SDA/SCL impressos na frente (modo I2C),
   rótulos TXD/RXD impressos no verso da placa (modo HSU) — mesmos furos físicos.
 
