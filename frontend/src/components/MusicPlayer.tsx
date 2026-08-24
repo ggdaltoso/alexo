@@ -58,7 +58,18 @@ export function MusicPlayer() {
     >
       <TitleBar title="Música" icon={<Mmsys120 variant="16x16_4" />} />
 
-      <Frame className="flex flex-col gap-1 overflow-hidden" p="$3" pr="$4" bgColor="$material">
+      {/*
+        Os tokens de espaçamento do React95 são pixels literais, não uma escala:
+        $3 = 3px, $10 = 10px. O pb maior é só para o cursor do Range não encostar
+        na borda de baixo do painel.
+      */}
+      <Frame
+        className="flex flex-col gap-1 overflow-hidden"
+        p="$3"
+        pr="$4"
+        pb="$10"
+        bgColor="$material"
+      >
         {vazio ? (
           <span className="truncate opacity-60">Nada tocando</span>
         ) : (
