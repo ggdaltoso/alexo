@@ -759,9 +759,14 @@ algoritmo, seguro de um lado e destrutivo do outro.
 **Não sai com reboot quente**: o módulo é alimentado pelo pino 3V3 do Pi, que não cai num
 `reboot`. Precisa de `poweroff` + tirar da tomada.
 
-A ressincronização no `init()` hoje usa um `GetFirmwareVersion` descartável em vez de leitura
-crua: se o barramento estiver dessincronizado, é ele que come a resposta velha e falha, e o
-comando seguinte já encontra tudo limpo. Só transações bem formadas.
+A ressincronização no `init()` hoje **repete o handshake** em vez de ler bytes crus: cada
+tentativa que falha consome um frame atrasado, então basta insistir até uma passar limpa. Uma
+tentativa só não basta — um SIGKILL no meio de um comando deixa **dois** frames pendentes (o ACK
+e a resposta), e a primeira versão, com um único comando descartável, ainda subia um frame
+atrás. `HANDSHAKE_ATTEMPTS = 4`.
+
+Validado com três ciclos de `kill -9` seguidos de religada: `init()` limpo nas três, e
+`raspi-gpio get 14,15` em `level=1` nas duas linhas depois de tudo.
 
 #### Escolha de biblioteca: cliente próprio sobre `i2c-bus`
 

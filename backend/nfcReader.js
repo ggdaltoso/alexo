@@ -42,6 +42,10 @@ const IN_LIST_TIMEOUT_MS = 800;
 // entre tirar a tag e a música pausar. Medir no Pi antes de mexer neste número.
 const VANISH_CONFIRMATIONS = 2;
 
+// Tentativas do handshake inicial. Cada falha consome um frame atrasado do
+// processo anterior; 4 cobre folgado os 2 que um SIGKILL deixa pendentes.
+const HANDSHAKE_ATTEMPTS = 4;
+
 const SAK_TYPES = {
   0x00: 'Mifare Ultralight / NTAG21x',
   0x08: 'Mifare Classic 1K',
@@ -279,40 +283,43 @@ async function init() {
     // Ressincroniza o barramento antes do primeiro comando de verdade.
     //
     // Se o processo anterior morreu com um comando pendente -- rotina, com
-    // Restart=always no systemd -- a resposta atrasada dele sai na primeira
-    // leitura deste processo, que a leria como o ACK do próprio comando e
-    // dessincronizaria tudo dali em diante.
+    // Restart=always no systemd -- as respostas atrasadas dele saem nas
+    // primeiras leituras deste processo, que as leria como o ACK do próprio
+    // comando e ficaria um frame atrás para sempre.
     //
     // O jeito óbvio de limpar seria ler e descartar os bytes pendentes, e é o que
     // a versão Python das ferramentas faz. NÃO fazer isso aqui: o os.read do
     // Python aceita leitura curta, mas o i2cRead do i2c-bus exige o tamanho exato
     // e fica clocando um dispositivo que tem menos bytes que isso -- o que TRAVA
-    // o barramento bit-banged e só sai com reboot (aconteceu em 24/08/2026).
+    // o barramento bit-banged e só sai tirando o Pi da tomada, porque o módulo é
+    // alimentado pelo 3V3 dele e um reboot quente não derruba esse trilho
+    // (aconteceu em 24/08/2026).
     //
-    // Em vez disso, um comando descartável: se o barramento estiver
-    // dessincronizado, é ele que come a resposta velha e falha, e o próximo já
-    // encontra tudo limpo. Só transações bem formadas.
+    // Em vez disso, repetir o comando: cada tentativa que falha consome um frame
+    // atrasado, então basta insistir até um passar limpo. Um SIGKILL no meio de
+    // um comando deixa dois frames pendentes (o ACK e a resposta), por isso uma
+    // tentativa só não basta. Só transações bem formadas.
     await device.abort();
     await sleep(50);
-    await device.sendCommand([CMD_GET_FIRMWARE_VERSION], 12, 300);
-    await sleep(50);
 
-    const fw = await device.sendCommand([CMD_GET_FIRMWARE_VERSION], 12);
-    if (fw.error) throw new Error(`GetFirmwareVersion: ${fw.error}`);
-    if (fw.payload.length < 4 || fw.payload[0] !== 0x03) {
-      throw new Error(`resposta inesperada do GetFirmwareVersion: ${fw.payload.toString('hex')}`);
-    }
+    const handshake = async (data, responseLen, expected, nome) => {
+      for (let tentativa = 1; tentativa <= HANDSHAKE_ATTEMPTS; tentativa += 1) {
+        const { payload, error } = await device.sendCommand(data, responseLen, CMD_TIMEOUT_MS);
+        if (!error && payload && payload.length && payload[0] === expected) return payload;
+        await device.abort();
+        await sleep(50);
+      }
+      throw new Error(`${nome} não respondeu em ${HANDSHAKE_ATTEMPTS} tentativas`);
+    };
+
+    const fw = await handshake([CMD_GET_FIRMWARE_VERSION], 12, 0x03, 'GetFirmwareVersion');
     console.log(
-      `[nfc] PN532 em /dev/i2c-${BUS_NUMBER} — IC 0x${fw.payload[1].toString(16)}, ` +
-        `firmware ${fw.payload[2]}.${fw.payload[3]}`
+      `[nfc] PN532 em /dev/i2c-${BUS_NUMBER} — IC 0x${fw[1].toString(16)}, ` +
+        `firmware ${fw[2]}.${fw[3]}`
     );
 
     // mode=normal(0x01), timeout=0x14 (1s), IRQ=0x01
-    const sam = await device.sendCommand([CMD_SAM_CONFIGURATION, 0x01, 0x14, 0x01], 9);
-    if (sam.error) throw new Error(`SAMConfiguration: ${sam.error}`);
-    if (!sam.payload.length || sam.payload[0] !== 0x15) {
-      throw new Error(`resposta inesperada do SAMConfiguration: ${sam.payload.toString('hex')}`);
-    }
+    await handshake([CMD_SAM_CONFIGURATION, 0x01, 0x14, 0x01], 9, 0x15, 'SAMConfiguration');
 
     stopped = false;
     loopPromise = pollLoop().catch((err) => {
