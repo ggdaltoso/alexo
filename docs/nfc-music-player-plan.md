@@ -693,6 +693,45 @@ chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detect
 armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
 a seção de armadilhas.
 
+#### `musicPlayer.js`: implementado e validado no Pi (24/08/2026)
+
+Cliente IPC **escrito à mão**, sem `node-mpv` — o protocolo é uma linha de JSON por comando num
+socket Unix, já validado neste Pi, e o plano original já registrava a suspeita de que o timeout
+de conexão embutido na lib não cobriria os ~11s de subida deste hardware. Mesma lógica que levou
+ao cliente próprio sobre `i2c-bus`.
+
+Validado com áudio real (`music-player-test.js`), álbum *A Link to the Past*:
+
+| Transição | Resultado |
+|---|---|
+| `playAlbum` | playlist de 3 faixas, tocando |
+| `pause` | posição **congelada** em 4,7s, ainda 4,7s depois de 2,5s parado |
+| `resume` | retomou de 4,7s → 8,8s |
+| `next` | faixa 2/3 |
+| `setVolume` | 50 → 20 em tempo real |
+| `stop` | playlist esvaziada, mpv segue ocioso |
+
+O pause/resume preservando posição é o mecanismo de que a regra "mesma tag recolocada retoma de
+onde parou" depende, e agora está provado no nível do módulo, não só por comando manual.
+
+**`init()` reaproveita um mpv já rodando** em vez de subir um novo. Medido: **1,0s** contra ~11s,
+e `pgrep -c mpv` continua em 1. Isso importa por causa do `Restart=always`: o backend reinicia
+várias vezes ao longo da vida do dispositivo, e subir um mpv por reinício custaria 11s de
+silêncio e deixaria órfãos acumulando. De quebra evita a armadilha do `pkill -f`, que já matou a
+própria sessão que o executou três vezes neste projeto.
+
+Duas decisões que valem registro:
+
+- **Não emitir `status` a cada segundo.** O evento sai só em transições reais, e leva
+  `{position, positionAt}` para o cliente interpolar sozinho. Os eventos `seek` e
+  `playback-restart` do mpv são ignorados de propósito: disparam em rajada na troca de faixa e
+  não acrescentam informação.
+- **`close()` não mata o mpv.** É o que permite o reaproveitamento acima.
+
+Uma pegadinha corrigida durante o teste: quando o `mpv` não está instalado (máquina de dev), o
+`spawn` falha com ENOENT no primeiro instante, mas a espera pelo socket continuava até o timeout
+de 45s. Agora o erro do spawn interrompe a espera — **0,5s** em vez de 45s.
+
 #### Ferramentas de bancada e por que são três
 
 - **`pn532-i2c-probe.py`** — diagnóstico completo, sem dependências. Prova o *hardware*.

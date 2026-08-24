@@ -21,6 +21,35 @@ html, body, #root {
   height: 100%;
 }
 
+/*
+ * Escurecimento da tela.
+ *
+ * Workaround: o display deste Pi não tem controle de brilho, e no escuro ele
+ * ofusca. Este overlay preto por cima de tudo simula brilho menor.
+ *
+ * Feito com body::after, e não com um componente React, para cobrir a árvore
+ * inteira -- galeria, rotas e qualquer tela futura -- sem depender de alguém
+ * lembrar de envolver o conteúdo novo.
+ *
+ * pointer-events: none é obrigatório, não detalhe: sem isso o overlay
+ * intercepta todo toque e a tela sensível ao toque para de funcionar.
+ *
+ * Para ajustar, mexer só em --screen-dim (0 = sem escurecer, 1 = preto).
+ */
+:root {
+  --screen-dim: 0.2;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: var(--screen-dim);
+  pointer-events: none;
+  z-index: 2147483647;
+}
+
 /* Ensure minimum touch target size */
 button,
 a,
