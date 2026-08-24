@@ -7,8 +7,14 @@ Requires=network-online.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/alexo
-ExecStart=/home/pi/node-v14.15.1-linux-armv6l/bin/npm start
+WorkingDirectory=/home/pi/alexo/backend
+# node direto, sem passar pelo npm.
+#
+# O script era `npm start`, que só faz `cd backend && node server.js`. Só que
+# subir o npm custa ~13s neste Pi mesmo ocioso (contra 2,6s do node), e no boot,
+# com o cartão SD disputado, essa camada extra custava minutos: em 24/08/2026 o
+# systemd deu "Started" às 15:53:01 e o npm imprimiu a primeira linha às 15:56:01.
+ExecStart=/home/pi/node-v14.15.1-linux-armv6l/bin/node server.js
 Environment="NODE_ENV=production"
 # O mpv é do alexo-mpv.service: o backend espera pelo socket em vez de subir
 # um processo próprio. Sem isto ele tentaria subir o seu e os dois disputariam

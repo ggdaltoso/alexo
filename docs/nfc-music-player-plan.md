@@ -732,17 +732,28 @@ vazia, e voltar a tocar sozinho seria som saindo do nada sem ninguém ter encost
 silêncio uma vez — o README documentava um `Restart=always` que os arquivos reais não tinham, e
 isso só apareceu quando o backend caiu de verdade e não voltou.
 
-#### Achado colateral: o backend leva ~3min30 para subir no boot
+#### Partida do backend: de 3min19 para 32s tirando o npm do caminho
 
-No mesmo boot medido acima, o systemd deu `Started Alexo Weather Dashboard` às 15:53:01 e o npm
-só imprimiu a primeira linha às **15:56:01** — três minutos —, com mais 19s até escutar na porta.
-Fora do boot o mesmo backend sobe em ~25s.
+O `ExecStart` era `npm start`, e o script da raiz é só `cd backend && NODE_ENV=production node
+server.js`. Ou seja: subia o npm inteiro para ele chamar o node.
 
-A diferença é disputa de I/O no cartão SD durante a inicialização, e o `ExecStart=npm start`
-piora: sobe o npm inteiro só para ele chamar `node server.js`. Trocar por
-`ExecStart=/home/pi/node-v14.15.1-linux-armv6l/bin/node backend/server.js` cortaria essa camada.
-**Não medido ainda** — anotado como candidato, não como conclusão. Hoje esta é a maior latência
-de partida do sistema, bem acima dos 11s do mpv que motivaram esta seção.
+**O npm sozinho custa 12,9s neste Pi mesmo ocioso** (`time npm --version`), contra 2,6s do
+`node -e "0"`. No boot, com o cartão SD disputado, essa camada extra custava minutos — não
+segundos.
+
+Trocado por `ExecStart=.../bin/node server.js` com `WorkingDirectory=/home/pi/alexo/backend`.
+Medido em dois boots consecutivos:
+
+| | `npm start` | `node` direto |
+|---|---|---|
+| systemd "Started" | 15:53:01 | 16:06:12 |
+| Backend escutando | 15:56:20 | 16:06:44 |
+| **Total** | **3min 19s** | **32s** |
+
+Fora do boot, o restart caiu de ~25s para 15s — consistente com os ~10s de overhead do npm.
+
+Vale generalizar: **em unit de systemd neste hardware, chamar o binário final direto, nunca via
+npm.** O mesmo raciocínio vale para qualquer wrapper que só reexporta um comando.
 
 #### `musicController.js`: implementado (24/08/2026)
 
