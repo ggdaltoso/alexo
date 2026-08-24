@@ -391,6 +391,18 @@ Duas medidas no `musicPlayer.init()`:
   string estiver na linha de comando dele (aconteceu aqui, matou a sessão ssh). Usar
   `pkill -x mpv` ou casar pelo caminho do socket do projeto.
 
+**Regra geral, porque isso já mordeu três vezes neste projeto** (`node server.js`, `mpv`, e os
+scripts de teste do NFC em 24/08): `pkill -f` e `pgrep -f` casam contra a linha de comando
+*inteira* de todo processo, inclusive a do shell que os está executando. Num `ssh host 'pkill -f
+foo'`, a linha do shell remoto contém `foo` — ele mata a si mesmo e o comando volta com erro
+enigmático. Três saídas, em ordem de preferência:
+
+1. **Matar por PID**, obtido antes (`$!` do próprio launch, ou pela porta:
+   `ss -lptn 'sport = :3001' | grep -oP 'pid=\K[0-9]+'`).
+2. **`pkill -x <nome-exato>`**, que casa só o executável e ignora argumentos.
+3. **Quebrar o auto-match com colchete** (`pkill -f 'fo[o]'`) — mas só funciona se a string
+   literal não aparecer em nenhum outro ponto do mesmo comando, o que é fácil de errar.
+
 #### PulseAudio também está no Pi
 
 `pulseaudio` roda nesse Pi e segura o `/dev/snd/controlC0`. Todos os testes passaram por cima
@@ -634,13 +646,18 @@ E cadastrar escolhendo numa lista de pastas que o backend já conhece não tem c
 enquanto um valor gravado na tag pode ficar órfão se a pasta for renomeada depois (e só se
 conserta com a tag na mão).
 
-**A exceção que mudaria isso: NDEF gravado pelo celular.** Se o conteúdo da tag for um NDEF text
-record, qualquer app grátis (NFC Tools) grava, e dá para preparar um lote de tags longe do Pi —
-aí a escrita elimina um passo de verdade. O preço é digitar o nome da pasta à mão, sem
-validação. **Em aberto**, aguardando decisão do usuário.
+Foi considerada uma exceção — gravar NDEF pelo celular, com um app grátis tipo NFC Tools, o que
+permitiria preparar um lote de tags longe do Pi. **Descartada em 24/08/2026.** O argumento que
+fechou a questão não foi o esforço, foi a duplicação de estado:
 
-Nos dois cenários o leitor precisa **cair pra trás no UID** quando a tag vier vazia ou ilegível,
-então o mapeamento em JSON existe de qualquer jeito. Não é uma escolha excludente.
+O leitor precisa **cair pra trás no UID** quando a tag vier vazia ou ilegível. Ou seja, o
+mapeamento em JSON existe de qualquer jeito. Gravar na tag portanto não *substitui* o
+mapeamento — cria uma segunda cópia do mesmo fato, que pode divergir da primeira sem nenhuma
+regra óbvia de qual vence. Uma fonte da verdade, em `data/nfc-tags.json`, e ponto.
+
+Consequência prática para a implementação: **o `nfcReader.js` só lê UID.** Nada de
+`InDataExchange`, nada de autenticação Mifare, nada de parser NDEF. O tipo da tag volta a ser
+irrelevante, como na seção anterior.
 
 #### Detalhe de protocolo: abortar o comando pendente
 
@@ -649,6 +666,77 @@ O manual do PN532 define que o host cancela mandando um frame de ACK. Sem isso, 
 comando chega em cima do anterior e as respostas saem trocadas — a detecção fica
 intermitente de um jeito que parece problema elétrico. O `pn532-i2c-probe.py` faz esse
 abort (`PN532I2C.abort()`), e qualquer implementação no backend precisa fazer o mesmo.
+
+#### `nfcReader.js`: implementado e validado no Pi (24/08/2026)
+
+Porte para Node do `pn532-i2c-probe.py`. `i2c-bus@5.2.3` compilou no `backend/` do Pi em
+**3m23s** e virou dependência do `package.json`. O `require('i2c-bus')` fica **dentro** do
+`init()`, de propósito: é addon nativo, a compilação no ARMv6 é o passo mais frágil do deploy,
+e um require no topo do arquivo derrubaria o servidor inteiro se faltasse. Na máquina de dev,
+sem o addon, o `init()` loga uma linha e devolve `false`.
+
+Validado com `nfc-node-vs-python.sh` (ver abaixo): tag `04426A126F6180` lida em 90ms, com
+detecção de presença e remoção.
+
+**Dois defeitos corrigidos durante a validação**, ambos encontrados por teste e nenhum por
+leitura do código:
+
+| Defeito | Correção |
+|---|---|
+| `stop()` fechava o barramento por baixo da varredura em voo → `EBADF` falso no shutdown | guarda a promise do loop e espera ela terminar antes de fechar |
+| Varredura vazia — o caso **normal** de um leitor ocioso — era contada como falha de barramento, e logaria "problema" a ~1 linha/segundo para sempre | `sendCommand` passou a classificar a falha em `timeout` / `bus` / `protocol`; só as duas últimas contam |
+
+Um terceiro tipo de erro apareceu, mas nas *ferramentas de teste*, não no módulo: `pkill -f` e
+`pgrep -f` casando com o próprio shell remoto que os invocava, e `require('./nfcReader')` num
+script em `/tmp` resolvendo pela pasta do script em vez do cwd. Os dois primeiros testes nunca
+chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detectou tag". A
+armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
+a seção de armadilhas.
+
+#### Ferramentas de bancada e por que são três
+
+- **`pn532-i2c-probe.py`** — diagnóstico completo, sem dependências. Prova o *hardware*.
+- **`nfc-read-uid.py`** — imprime só o UID, uma linha por tag. Para teste manual: descobrir o
+  UID de uma tag nova e testar alcance/posicionamento sem ruído.
+- **`nfc-reader-test.js`** — exercita o `nfcReader.js` de verdade. Prova o *porte*.
+- **`nfc-node-vs-python.sh`** — roda os dois últimos na mesma sessão com a mesma tag parada.
+
+O `.sh` existe por causa de uma ambiguidade de diagnóstico que custou várias rodadas: quando o
+Node não lê nada, isso tanto pode ser bug no porte quanto tag fora do campo, e rodar os dois
+separadamente **não** resolve, porque a posição da tag muda entre as tentativas. A solução foi
+tirar o timing da equação: a fase 1 fica esperando até o Python ver a tag, e só então o Node
+roda, com a tag imóvel. Aí o resultado é inequívoco.
+
+#### O `i2cdetect` não prova que a antena funciona
+
+Lição que custou caro em 24/08/2026. `i2cdetect -y 3` mostrando `0x24` prova apenas que o chip
+dá ACK no próprio endereço — o campo RF é outro subsistema. Passamos várias rodadas de teste
+com o módulo respondendo a `GetFirmwareVersion` e `SAMConfiguration` normalmente, e **zero**
+leituras de tag, porque o módulo estava mal posicionado. O sintoma imita perfeitamente um bug de
+software: `InListPassiveTarget` volta sem frame de resposta, exatamente como voltaria se o
+comando estivesse malformado.
+
+**Ao investigar "não lê tag", confirmar o campo RF antes de suspeitar do código** — rodar o
+`nfc-read-uid.py` na mão e ver um UID aparecer.
+
+#### Pendente: dropout com a tag parada
+
+No teste de validação, com a tag **imóvel** na antena, o leitor a perdeu por ~4s e reencontrou:
+
+```
+ 0.90s  PRESENTE  04426A126F6180
+ 5.07s  REMOVIDA  04426A126F6180   <- tag parada
+ 9.14s  PRESENTE  04426A126F6180
+```
+
+Acoplamento marginal. Importa para a música: um `tag-vanish` falso pausa a faixa e o
+`tag-present` seguinte manda continuar, então o usuário ouviria um buraco de ~4s. O
+`VANISH_CONFIRMATIONS = 2` atual (~2s de tolerância) não cobre isso.
+
+**Não resolver só aumentando o número.** Cobrir 4s exigiria ~5 confirmações, e isso viraria ~5s
+entre tirar a tag e a música pausar — péssimo para o gesto "tirei a tag, parou". O dropout é
+sintoma de posicionamento, e a correção primária é física: fixar o módulo numa posição boa e
+remedir. Só depois ajustar a tolerância, com o número justificado pela medição.
 
 #### Escolha de biblioteca: cliente próprio sobre `i2c-bus`
 
