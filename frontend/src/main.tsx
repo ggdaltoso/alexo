@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { AppProvider } from './contexts/AppContext';
 import { Galeria } from './components/Galeria';
+import { MusicPlayer } from './components/MusicPlayer';
 
 import '@react95/core/GlobalStyle';
 import './win95.css';
@@ -22,16 +23,30 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <div className="flex w-full h-full gap-2">
-        <Galeria />
-        <div className="w-1/2 h-full shrink-0 overflow-hidden">
-          <BrowserRouter>
-            <AppProvider>
+      {/*
+        Layout em duas colunas:
+
+          Galeria       | telas (carrossel)
+          MusicPlayer   | barra de progresso
+
+        O BrowserRouter e o AppProvider passaram a envolver as DUAS colunas. Antes
+        ficavam só na direita, mas o MusicPlayer vive na esquerda e precisa do
+        `musicPlayback` do contexto -- e o AppProvider usa useNavigate, então tem
+        de estar dentro do Router.
+      */}
+      <BrowserRouter>
+        <AppProvider>
+          <div className="flex w-full h-full gap-2">
+            <div className="w-1/2 h-full shrink-0 flex flex-col gap-2 overflow-hidden">
+              <Galeria />
+              <MusicPlayer />
+            </div>
+            <div className="w-1/2 h-full shrink-0 overflow-hidden">
               <App />
-            </AppProvider>
-          </BrowserRouter>
-        </div>
-      </div>
+            </div>
+          </div>
+        </AppProvider>
+      </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,
 );

@@ -69,7 +69,9 @@ export function Galeria() {
   if (images.length === 0) {
     return (
       <Frame
-        className="w-1/2 h-full flex flex-col shrink-0 overflow-hidden relative bg-black"
+        // w-full + flex-1: quem decide a largura e a altura agora e a coluna em
+      // main.tsx, que divide o espaço com o MusicPlayer abaixo.
+      className="w-full flex-1 min-h-0 flex flex-col overflow-hidden relative bg-black"
         p="$1"
         boxShadow="$out"
       >
@@ -89,7 +91,9 @@ export function Galeria() {
 
   return (
     <Frame
-      className="w-1/2 h-full flex flex-col shrink-0 overflow-hidden relative bg-black"
+      // w-full + flex-1: quem decide a largura e a altura agora e a coluna em
+      // main.tsx, que divide o espaço com o MusicPlayer abaixo.
+      className="w-full flex-1 min-h-0 flex flex-col overflow-hidden relative bg-black"
       p="$1"
       boxShadow="$out"
     >

@@ -72,7 +72,48 @@ export interface GalleryUpdatedBroadcast {
   type: 'gallery_updated';
 }
 
-export type ServerMessage = NfcMessageBroadcast | GalleryUpdatedBroadcast;
+export interface MusicPlaybackState {
+  album: string | null;
+  trackId: string | null;
+  trackIndex: number;
+  trackCount: number;
+  title: string | null;
+  filename: string | null;
+  isPlaying: boolean;
+  /** Segundos, medidos em `positionAt`. Ver o comentário abaixo. */
+  position: number;
+  /**
+   * Instante (epoch ms) em que `position` foi medida.
+   *
+   * O backend só emite em transições reais, nunca a cada segundo. Este par é o
+   * que permite ao cliente interpolar a posição localmente entre um evento e o
+   * seguinte, em vez de exigir um fluxo contínuo pelo WebSocket.
+   */
+  positionAt: number;
+  duration: number | null;
+  volume: number;
+  activeTagUid: string | null;
+}
+
+export interface MusicPlaybackBroadcast extends MusicPlaybackState {
+  type: 'music_playback_state';
+  timestamp: number;
+}
+
+export interface MusicTracksUpdatedBroadcast {
+  type: 'music_tracks_updated';
+}
+
+export interface MusicTagsUpdatedBroadcast {
+  type: 'music_tags_updated';
+}
+
+export type ServerMessage =
+  | NfcMessageBroadcast
+  | GalleryUpdatedBroadcast
+  | MusicPlaybackBroadcast
+  | MusicTracksUpdatedBroadcast
+  | MusicTagsUpdatedBroadcast;
 
 export interface ExchangeRate {
   code: string;

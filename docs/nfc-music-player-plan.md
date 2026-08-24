@@ -1199,8 +1199,33 @@ Consequências para o player de música, que simplificam o desenho original:
 - `frontend/src/types.ts`: `MusicTrack`, `NfcTagMapping`, `MusicPlaybackState`.
 - `frontend/src/services/websocket.ts`: tipar o callback como união discriminada em vez de assumir sempre `NFCMessage`.
 - `frontend/src/services/api.ts`: adicionar métodos de música (`getTracks`, `uploadTrack`, `deleteTrack`, `getTagMappings`, `getPlayerStatus`, `playMusic`, `pauseMusic`, `nextTrack`, `previousTrack`, `setVolume`) — usar a classe `ApiService` já existente em vez do fetch cru que a `Galeria.tsx` usa, estabelecendo o padrão pretendido pra código novo.
-- `frontend/src/screens/MusicScreen.tsx` (novo): lê `musicPlayback` via `useApp()` (não precisa de hook de polling — o dado já chega via WS/contexto). Interpola a posição localmente a cada ~500ms enquanto tocando. Mostra título da faixa, `mm:ss / mm:ss` (com `--:--` no total enquanto `duration` for nulo — faixas importadas só ganham duração na primeira reprodução), barra de progresso (`Frame boxShadow="$in"`, no estilo das outras telas), e controles: play/pause, anterior/próxima (agora têm alvo real — a playlist do álbum), volume +/-. Mostrar também `faixa X de Y` e o nome do álbum, já que a tag representa o álbum e não a faixa. Early-return `null` se não houver faixa ativa, igual ao padrão do `MessageScreen.tsx`.
-- `frontend/src/App.tsx`: adicionar `<Route path="/music" element={<MusicScreen />} />`.
+- `frontend/src/components/MusicPlayer.tsx` (novo) — **substitui a `MusicScreen` prevista.**
+  Decidido em 24/08/2026, a pedido do usuário: o player não é uma tela do carrossel, é um
+  **painel permanente** abaixo da Galeria. O layout passou de
+
+  ```
+  Galeria | telas          Galeria     | telas
+  Galeria | progresso  ->  MusicPlayer | progresso
+  ```
+
+  Isso é melhor que o desenho original por eliminar o problema inteiro: não existe rota
+  `/music`, não existe navegação automática ao encostar a tag, não existe "voltar para a rota
+  anterior" quando ela sai. Era a mesma mecânica de interrupção do `/message` que já tinha sido
+  removida por ser ruim — teria voltado pela porta dos fundos.
+
+  **Sem controles, de propósito**: quem comanda é a tag. Botões competiriam com o gesto físico e
+  criariam estados contraditórios, como pausar na tela com a tag ainda encostada.
+
+  Usa `Range` (não `ProgressBar`) para a posição — parece scrubber de player em vez de barra de
+  carregamento. Inerte via `pointer-events: none` + `tabIndex={-1}`, e não via `disabled`, que
+  deixaria o cursor cinza e sugeriria "quebrado".
+
+  Interpola a posição localmente a partir de `{position, positionAt}`, que é o que permite ao
+  backend emitir só em transições.
+
+- `frontend/src/main.tsx`: o `BrowserRouter` e o `AppProvider` passaram a envolver as **duas**
+  colunas. Antes ficavam só na direita, mas o `MusicPlayer` vive na esquerda e precisa do
+  contexto — e o `AppProvider` usa `useNavigate`, então tem de estar dentro do Router.
 
 ## Verificação
 

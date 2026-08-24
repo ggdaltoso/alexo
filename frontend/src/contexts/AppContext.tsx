@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import type { WeatherData, Coordinates, NFCMessage } from '../types';
+import type { WeatherData, Coordinates, NFCMessage, MusicPlaybackState } from '../types';
 import { wsService } from '../services/websocket';
 import { useWeather } from '../hooks/useWeather';
+import { API_CONFIG } from '../config/api';
 
 interface AppContextType {
   // Weather
@@ -17,6 +18,9 @@ interface AppContextType {
 
   // Messages
   currentMessage: NFCMessage | null;
+
+  // Música
+  musicPlayback: MusicPlaybackState | null;
 
   // Timer
   timerProgress: number; // 0-100
@@ -54,6 +58,11 @@ export function AppProvider({ children }: AppProviderProps) {
   // Message state
   const [currentMessage, setCurrentMessage] = useState<NFCMessage | null>(null);
 
+  // Estado do player. Chega por WebSocket em transições reais; o valor inicial
+  // vem de um GET no mount, senão um F5 no meio de uma música mostraria o painel
+  // vazio até a próxima transição -- que pode demorar uma faixa inteira.
+  const [musicPlayback, setMusicPlayback] = useState<MusicPlaybackState | null>(null);
+
   // Timer state
   const [elapsedTime, setElapsedTime] = useState(0);
 
@@ -84,6 +93,12 @@ export function AppProvider({ children }: AppProviderProps) {
     //     console.error('Failed to fetch initial state:', error);
     //   });
 
+    // Estado inicial do player, para o painel não nascer vazio depois de um F5.
+    fetch(`${API_CONFIG.BASE_URL}/api/music/player/status`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => { if (s) setMusicPlayback(s); })
+      .catch(() => { /* backend fora do ar: o WS preenche quando voltar */ });
+
     // Connect to WebSocket for real-time updates
     wsService.connect();
     const unsubscribe = wsService.subscribe((event) => {
@@ -105,6 +120,18 @@ export function AppProvider({ children }: AppProviderProps) {
 
         case 'gallery_updated':
           // Ignorado de propósito: a Galeria faz polling e não escuta o WS.
+          break;
+
+        case 'music_playback_state': {
+          // `type` e `timestamp` são do envelope, não do estado do player.
+          const { type: _t, timestamp: _ts, ...estado } = event;
+          setMusicPlayback(estado);
+          break;
+        }
+
+        case 'music_tracks_updated':
+        case 'music_tags_updated':
+          // Só interessam ao admin, que relê sozinho.
           break;
 
         default:
@@ -200,6 +227,7 @@ export function AppProvider({ children }: AppProviderProps) {
     navigateToScreen,
     currentMessage,
     timerProgress,
+    musicPlayback,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
