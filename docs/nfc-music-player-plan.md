@@ -693,6 +693,57 @@ chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detect
 armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
 a seção de armadilhas.
 
+#### O mpv virou serviço systemd próprio (24/08/2026)
+
+Antes o mpv era filho do backend. Dois problemas com isso, e o segundo é o que pesou:
+
+1. Os ~11s de subida caíam depois do backend já estar atendendo — uma janela morta em que
+   encostar a tag não fazia nada.
+2. **Ninguém supervisionava o mpv.** Se morresse, ficava morto até o backend reiniciar. Era a
+   única peça do sistema sem `Restart=always`.
+
+`deploy/systemd/alexo-mpv.service` resolve as duas. Medido depois de um reboot:
+
+```
+15:52:47  mpv iniciado
+15:53:00  socket pronto          <- 13s
+15:53:01  backend iniciado       <- 1s depois do socket
+15:53:09  Chromium na tela       <- 9s depois
+```
+
+Os 11s ficaram inteiramente absorvidos pelo boot: o socket estava pronto **antes** do backend
+subir. O código do `musicPlayer` quase não mudou, porque o caminho de reaproveitamento que já
+existia é exatamente o que faz o mpv externo funcionar.
+
+**`MPV_EXTERNAL=1`** (no `alexo.service`) faz o backend só *esperar* pelo socket, nunca subir um
+mpv próprio. Sem essa distinção haveria corrida no boot: o backend não acharia o socket, removeria
+o arquivo e subiria o seu, deixando dois mpv disputando o mesmo caminho. Na máquina de dev a
+variável não existe e o spawn continua valendo — é o que faz `npm start` tocar som sem instalar
+unit nenhuma.
+
+**Reconexão automática passou a ser obrigatória.** Enquanto o mpv era filho do backend os dois
+morriam juntos e o caso não existia. Com `Restart=always` no mpv, ele reinicia sozinho — e sem
+reconectar o backend ficaria sem player até *ele* reiniciar também. Verificado com `systemctl
+kill -s SIGKILL alexo-mpv.service`: reconectou após 9 tentativas, ~24s (o `RestartSec=5` mais os
+~11s de subida). A reprodução **não** é retomada de propósito: o mpv novo sobe com playlist
+vazia, e voltar a tocar sozinho seria som saindo do nada sem ninguém ter encostado tag.
+
+**Units agora versionados em `deploy/systemd/`.** Eles viviam só no Pi e já haviam divergido em
+silêncio uma vez — o README documentava um `Restart=always` que os arquivos reais não tinham, e
+isso só apareceu quando o backend caiu de verdade e não voltou.
+
+#### Achado colateral: o backend leva ~3min30 para subir no boot
+
+No mesmo boot medido acima, o systemd deu `Started Alexo Weather Dashboard` às 15:53:01 e o npm
+só imprimiu a primeira linha às **15:56:01** — três minutos —, com mais 19s até escutar na porta.
+Fora do boot o mesmo backend sobe em ~25s.
+
+A diferença é disputa de I/O no cartão SD durante a inicialização, e o `ExecStart=npm start`
+piora: sobe o npm inteiro só para ele chamar `node server.js`. Trocar por
+`ExecStart=/home/pi/node-v14.15.1-linux-armv6l/bin/node backend/server.js` cortaria essa camada.
+**Não medido ainda** — anotado como candidato, não como conclusão. Hoje esta é a maior latência
+de partida do sistema, bem acima dos 11s do mpv que motivaram esta seção.
+
 #### `musicController.js`: implementado (24/08/2026)
 
 A cola. Único módulo que enxerga `nfcReader`, `musicPlayer`, `state` e `ws` ao mesmo tempo — os

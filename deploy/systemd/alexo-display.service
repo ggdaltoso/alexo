@@ -1,0 +1,14 @@
+[Unit]
+Description=Alexo Chromium Display
+After=graphical.target alexo.service
+Requires=alexo.service
+
+[Service]
+User=pi
+ExecStart=/usr/bin/chromium-browser --kiosk --incognito --disable-infobars http://localhost:3001
+Environment=DISPLAY=:0
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=graphical.target

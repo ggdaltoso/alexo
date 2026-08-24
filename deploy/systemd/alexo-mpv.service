@@ -1,0 +1,29 @@
+# Player de áudio ocioso do Alexo.
+#
+# Existe como serviço próprio, e não como filho do backend, por dois motivos:
+#
+#   1. O mpv leva ~11s para abrir o socket IPC neste Pi. Subindo no boot, esses
+#      11s acontecem em paralelo com o resto da inicialização (X, Chromium), em
+#      vez de virarem uma janela morta depois que o backend já está atendendo.
+#   2. Ganha Restart=always. Como filho do backend ele não tinha supervisor
+#      nenhum: se morresse, ficava morto até alguém reiniciar o backend.
+#
+# O backend NÃO sobe o mpv quando MPV_EXTERNAL=1 está no ambiente dele (ver
+# alexo.service) -- ele só espera este socket aparecer.
+
+[Unit]
+Description=Alexo music player (mpv idle)
+After=sound.target
+
+[Service]
+Type=simple
+User=pi
+# O mpv não consegue fazer bind num socket que já existe, e um encerramento
+# abrupto deixa o arquivo para trás.
+ExecStartPre=/bin/rm -f /tmp/alexo-mpv.sock
+ExecStart=/usr/bin/mpv --idle=yes --no-video --audio-device=alsa/hw:0,0 --volume=100 --input-ipc-server=/tmp/alexo-mpv.sock
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,22 @@
+[Unit]
+Description=Alexo Weather Dashboard
+After=network-online.target alexo-mpv.service
+Wants=alexo-mpv.service
+Requires=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/alexo
+ExecStart=/home/pi/node-v14.15.1-linux-armv6l/bin/npm start
+Environment="NODE_ENV=production"
+# O mpv é do alexo-mpv.service: o backend espera pelo socket em vez de subir
+# um processo próprio. Sem isto ele tentaria subir o seu e os dois disputariam
+# o mesmo socket.
+Environment="MPV_EXTERNAL=1"
+Environment="PATH=/home/pi/node-v14.15.1-linux-armv6l/bin:/usr/local/bin:/usr/bin:/bin"
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

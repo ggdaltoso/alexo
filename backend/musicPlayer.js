@@ -36,6 +36,16 @@ const DEFAULT_VOLUME = 100;
 // boot do Express não pode esperar por isso -- ver init().
 const SOCKET_TIMEOUT_MS = 45000;
 
+// Em produção o mpv é o alexo-mpv.service, que sobe no boot junto com o resto.
+// Com isto ligado o backend NUNCA sobe um mpv próprio: só espera o socket.
+//
+// Sem essa distinção haveria corrida no boot -- o backend não acharia o socket
+// (o mpv systemd ainda subindo), removeria o arquivo e subiria o seu, deixando
+// dois mpv disputando o mesmo caminho. Na máquina de dev, sem a variável, o
+// spawn continua valendo: é o que faz `npm start` tocar som sem instalar unit
+// nenhuma.
+const MPV_EXTERNAL = process.env.MPV_EXTERNAL === '1';
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Conexão com o mpv: uma linha de JSON por comando, respostas casadas por request_id. */
@@ -136,11 +146,54 @@ async function waitForSocket(socketPath, timeoutMs, desistir) {
   return null;
 }
 
+/**
+ * Reconecta ao mpv depois que a conexão cai.
+ *
+ * Obrigatório desde que o mpv virou um serviço systemd com Restart=always: ele
+ * reinicia sozinho, e sem isto o backend ficaria sem player até *ele* reiniciar
+ * também. Enquanto o mpv era filho do backend o caso não existia, porque os dois
+ * morriam juntos.
+ *
+ * Não retoma a reprodução de propósito. O mpv novo sobe com a playlist vazia, e
+ * voltar a tocar sozinho seria surpresa desagradável -- som saindo do nada, sem
+ * ninguém ter encostado tag. O estado é zerado e o gesto vale de novo.
+ */
+async function reconectar() {
+  if (reconectando || encerrando) return;
+  reconectando = true;
+
+  let tentativa = 0;
+  while (!encerrando) {
+    tentativa += 1;
+    try {
+      const socket = await connectOnce(SOCKET_PATH);
+      ipc = new MpvIpc(socket);
+      wireEvents();
+      atual = { album: null, tracks: [], volume: atual.volume };
+      available = true;
+      console.log(`[music] reconectado ao mpv após ${tentativa} tentativa(s)`);
+      await ipc.command('set_property', 'volume', atual.volume).catch(() => {});
+      emitStatus().catch(() => {});
+      break;
+    } catch (err) {
+      // Só a primeira e depois de 10 em 10: o mpv leva ~11s para subir e o
+      // RestartSec soma mais alguns, então um punhado de falhas é o normal.
+      if (tentativa === 1 || tentativa % 10 === 0) {
+        console.warn(`[music] mpv fora do ar, tentando reconectar (${tentativa})`);
+      }
+      await sleep(3000);
+    }
+  }
+  reconectando = false;
+}
+
 const player = new EventEmitter();
 
 let ipc = null;
 let child = null;
 let available = false;
+let reconectando = false;
+let encerrando = false;
 
 // Espelho local do que está tocando. O mpv sabe da playlist, mas não sabe o que
 // é "álbum" nem qual id o catálogo deu para cada faixa -- isso é nosso.
@@ -210,7 +263,10 @@ function wireEvents() {
 
   ipc.on('close', () => {
     available = false;
+    ipc = null;
+    if (encerrando) return;
     console.warn('[music] conexão com o mpv caiu');
+    reconectar();
   });
 
   ipc.on('error', (err) => {
@@ -239,7 +295,27 @@ async function init() {
       await ipc.command('set_property', 'volume', atual.volume).catch(() => {});
       return true;
     } catch (err) {
-      // Nenhum mpv atendendo. Se sobrou um socket morto, ele impede o bind.
+      // Nenhum mpv atendendo ainda.
+      if (MPV_EXTERNAL) {
+        // Quem sobe o mpv é o systemd; aqui só resta esperar. Não remover o
+        // socket e não subir processo nenhum.
+        const socket = await waitForSocket(SOCKET_PATH, SOCKET_TIMEOUT_MS);
+        if (!socket) {
+          console.warn(
+            `[music] MPV_EXTERNAL=1 mas ${SOCKET_PATH} não apareceu em ` +
+              `${SOCKET_TIMEOUT_MS / 1000}s — o alexo-mpv.service está de pé?`
+          );
+          return false;
+        }
+        ipc = new MpvIpc(socket);
+        wireEvents();
+        available = true;
+        console.log(`[music] conectado ao mpv externo em ${SOCKET_PATH}`);
+        await ipc.command('set_property', 'volume', atual.volume).catch(() => {});
+        return true;
+      }
+
+      // Se sobrou um socket morto, ele impede o bind do mpv que vamos subir.
       if (fs.existsSync(SOCKET_PATH)) {
         try {
           fs.unlinkSync(SOCKET_PATH);
@@ -374,6 +450,7 @@ async function getStatus() {
  * init(), o que evita os ~11s de subida a cada reinício do backend.
  */
 function close() {
+  encerrando = true;
   if (ipc) {
     ipc.close();
     ipc = null;
