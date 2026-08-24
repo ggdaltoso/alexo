@@ -8,6 +8,7 @@ const multer = require('multer');
 const wsServer = require('./ws');
 const state = require('./state');
 const { randomUUID } = require('./ids');
+const musicController = require('./musicController');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -242,4 +243,20 @@ server.listen(PORT, () => {
     console.log(`Frontend available at http://localhost:${PORT}`);
   }
   console.log(`Admin da galeria: http://localhost:${PORT}/admin/gallery`);
+
+  // Depois do listen, e sem await: o mpv leva ~11s para subir neste Pi, e o
+  // servidor não pode ficar sem atender HTTP nesse intervalo. Falha aqui não
+  // derruba nada -- o controller já trata tudo internamente e o backend segue
+  // funcionando sem música.
+  musicController.init().catch((err) => {
+    console.error('[music] init falhou:', err.message);
+  });
 });
+
+// Encerrar limpo: sem isso o leitor NFC fica com o barramento aberto e o
+// próximo processo herda um comando pendente.
+for (const sinal of ['SIGINT', 'SIGTERM']) {
+  process.on(sinal, () => {
+    musicController.stop().finally(() => process.exit(0));
+  });
+}

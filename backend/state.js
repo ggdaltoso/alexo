@@ -4,12 +4,33 @@ const path = require('path');
 const DATA_DIR = path.join(__dirname, 'data');
 const GALLERY_FILE = path.join(DATA_DIR, 'gallery.json');
 const TRACKS_FILE = path.join(DATA_DIR, 'music-tracks.json');
+const TAGS_FILE = path.join(DATA_DIR, 'nfc-tags.json');
 
 // data/ não é sincronizado pelo deploy -- ver o comentário em server.js.
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 let state = {
   message: null,
+  // Estado do player: em memória, NUNCA em disco. A posição de reprodução muda o
+  // tempo todo, e persistir a cada tick faria escrita constante no cartão SD do
+  // Pi Zero. Mesmo tratamento que `message` já recebe.
+  player: {
+    album: null,
+    trackId: null,
+    trackIndex: 0,
+    trackCount: 0,
+    title: null,
+    filename: null,
+    isPlaying: false,
+    position: 0,
+    positionAt: 0,
+    duration: null,
+    volume: 100,
+    activeTagUid: null,
+    // Última tag pausada. É o que permite distinguir "recolocou a mesma tag"
+    // (retoma de onde parou) de "encostou outra" (começa do zero).
+    pausedUid: null,
+  },
 };
 
 function getState() {
@@ -145,6 +166,67 @@ function getTracksByAlbum(album) {
     .sort((a, b) => a.filename.localeCompare(b.filename));
 }
 
+// Mapeamento tag -> álbum
+//
+// A chave é o nome do álbum (= nome da pasta), não um trackId. Ver a decisão de
+// escopo no plano: a tag representa o álbum inteiro.
+
+function readTagMappings() {
+  try {
+    return JSON.parse(fs.readFileSync(TAGS_FILE, 'utf-8'));
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.error(`Falha ao ler ${TAGS_FILE}:`, err.message);
+    }
+    return [];
+  }
+}
+
+function writeTagMappings(mappings) {
+  fs.writeFileSync(TAGS_FILE, JSON.stringify(mappings, null, 2));
+}
+
+function getTagMappings() {
+  return readTagMappings();
+}
+
+function getTagMapping(uid) {
+  return readTagMappings().find((m) => m.uid === uid) || null;
+}
+
+/** Upsert: cadastrar a mesma tag de novo troca o álbum em vez de duplicar. */
+function setTagMapping({ uid, album }) {
+  const mappings = readTagMappings();
+  const existente = mappings.find((m) => m.uid === uid);
+  if (existente) {
+    existente.album = album;
+  } else {
+    mappings.push({ uid, album });
+  }
+  writeTagMappings(mappings);
+  return { uid, album };
+}
+
+function removeTagMapping(uid) {
+  const mappings = readTagMappings();
+  const idx = mappings.findIndex((m) => m.uid === uid);
+  if (idx === -1) return null;
+  const [removido] = mappings.splice(idx, 1);
+  writeTagMappings(mappings);
+  return removido;
+}
+
+// Estado do player (memória)
+
+function getPlayerState() {
+  return state.player;
+}
+
+function setPlayerState(partial) {
+  state.player = { ...state.player, ...partial };
+  return state.player;
+}
+
 module.exports = {
   getState,
   updateMessage,
@@ -158,4 +240,10 @@ module.exports = {
   removeTrack,
   getAlbums,
   getTracksByAlbum,
+  getTagMappings,
+  getTagMapping,
+  setTagMapping,
+  removeTagMapping,
+  getPlayerState,
+  setPlayerState,
 };

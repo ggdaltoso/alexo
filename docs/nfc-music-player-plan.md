@@ -693,6 +693,43 @@ chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detect
 armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
 a seção de armadilhas.
 
+#### `musicController.js`: implementado (24/08/2026)
+
+A cola. Único módulo que enxerga `nfcReader`, `musicPlayer`, `state` e `ws` ao mesmo tempo — os
+dois primeiros seguem sem se conhecer, o leitor não sabe o que é música e o player não sabe o
+que é tag.
+
+Regras do gesto, como implementadas:
+
+| Situação | Ação |
+|---|---|
+| tag encostada, sem mapeamento | ignora (loga) |
+| tag encostada, é a que pausou (`pausedUid`) | `resume()` — preserva a posição |
+| tag encostada, é outra | `playAlbum()` — começa do zero |
+| tag removida, é a ativa | `pause()`, guarda em `pausedUid` |
+| tag removida, é outra | ignora |
+| mapeamento aponta para álbum sem faixas | avisa e não faz nada (pasta renomeada depois do cadastro) |
+
+Três decisões de integração:
+
+- **`musicPlayer.init()` e `nfcReader.init()` rodam em paralelo** (`Promise.all`). Em série, o
+  leitor só começaria a varrer depois dos ~11s do mpv.
+- **`musicController.init()` é chamado depois do `listen`, sem `await`.** O servidor não pode
+  ficar sem atender HTTP durante a subida do mpv.
+- **Re-broadcast a cada 10s enquanto toca**, só como rede de segurança contra drift do relógio
+  do cliente (que interpola a posição entre transições). Não é streaming — é ordens de grandeza
+  abaixo do broadcast por segundo que este projeto não tem precedente de fazer.
+
+`simulateTag(uid, evento)` injeta o gesto pelo mesmo caminho dos eventos reais, e é o que
+permite desenvolver o frontend numa máquina sem PN532.
+
+`state.js` ganhou o mapeamento tag→álbum em `data/nfc-tags.json` (upsert por UID) e o estado do
+player **em memória, nunca em disco** — a posição muda o tempo todo e persistir a cada tick
+faria escrita constante no cartão SD.
+
+`server.js` também ganhou handlers de `SIGINT`/`SIGTERM` chamando `musicController.stop()`: sem
+isso o leitor fica com o barramento aberto e o processo seguinte herda um comando pendente.
+
 #### `import-music.js` + catálogo em `state.js`: feitos e validados (24/08/2026)
 
 Rodado no Pi: **404 faixas em 6 álbuns**, exatamente o que estava previsto.
