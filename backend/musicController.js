@@ -170,7 +170,18 @@ module.exports = {
   simulateTag,
   getStatus,
   stopPlayback,
-  play: (album) => musicPlayer.playAlbum(album, state.getTracksByAlbum(album)),
+  /**
+   * Toca um álbum, opcionalmente a partir de uma faixa.
+   *
+   * `trackId` é o id do catálogo, não o índice: índice mudaria se a pasta
+   * ganhasse arquivo novo, e o cliente estaria se referindo a outra faixa sem
+   * perceber.
+   */
+  play: (album, trackId) => {
+    const faixas = state.getTracksByAlbum(album);
+    const idx = trackId ? faixas.findIndex((t) => t.id === trackId) : 0;
+    return musicPlayer.playAlbum(album, faixas, idx < 0 ? 0 : idx);
+  },
   pause: () => musicPlayer.pause(),
   resume: () => musicPlayer.resume(),
   restart: () => musicPlayer.restart(),

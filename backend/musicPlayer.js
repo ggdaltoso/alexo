@@ -366,8 +366,15 @@ async function init() {
   }
 }
 
-/** Carrega um álbum e começa a tocar da primeira faixa. */
-async function playAlbum(album, tracks) {
+/**
+ * Carrega um álbum e toca a partir de `startIndex` (padrão: a primeira faixa).
+ *
+ * Carrega o álbum inteiro mesmo quando o alvo é uma faixa do meio, em vez de
+ * carregar só ela: é o que mantém anterior/próxima navegando pelo álbum. Um
+ * `loadfile` de arquivo único deixaria a playlist com um item só e os controles
+ * sem para onde ir.
+ */
+async function playAlbum(album, tracks, startIndex = 0) {
   if (!available || !tracks || !tracks.length) return null;
 
   atual = { album, tracks: tracks.slice(), volume: atual.volume };
@@ -380,6 +387,12 @@ async function playAlbum(album, tracks) {
   for (const faixa of tracks.slice(1)) {
     await ipc.command('loadfile', caminho(faixa), 'append');
   }
+
+  const alvo = Math.max(0, Math.min(tracks.length - 1, Number(startIndex) || 0));
+  if (alvo > 0) {
+    await ipc.command('set_property', 'playlist-pos', alvo);
+  }
+
   await ipc.command('set_property', 'pause', false);
   return emitStatus();
 }

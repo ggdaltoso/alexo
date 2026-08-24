@@ -693,6 +693,27 @@ chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detect
 armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
 a seção de armadilhas.
 
+#### Dashboard `/admin` e seleção de faixa (24/08/2026)
+
+`/admin` é o índice: contagens de conteúdo (imagens, álbuns, faixas, tags) renderizadas no
+servidor, e os blocos que mudam sozinhos — leitor NFC, player — atualizados por polling de 2s.
+Renderizar uma vez mostraria um retrato velho de coisas que mudam a cada segundo.
+
+O card de tags fica **amarelo** quando algum mapeamento aponta para álbum inexistente. Sem esse
+destaque o sintoma é "encostei a tag e não tocou", que não sugere nada sobre a causa.
+
+**Seleção de faixa no player do admin**: dois seletores, álbum e faixa. `playAlbum` ganhou
+`startIndex`, e a rota aceita `{album, trackId}`.
+
+Duas decisões aqui:
+
+- **Carrega o álbum inteiro mesmo quando o alvo é uma faixa do meio**, e só então pula para ela
+  (`set_property playlist-pos`). Um `loadfile` da faixa sozinha deixaria a playlist com um item e
+  os controles anterior/próxima sem para onde ir. Verificado no Pi: tocar a faixa 10 e mandar
+  `previous` leva à 9 **dentro das 66**, não a lugar nenhum.
+- **A rota recebe `trackId`, não índice.** Índice mudaria se a pasta ganhasse um arquivo novo, e
+  o cliente estaria se referindo a outra faixa sem perceber.
+
 #### Rotas REST e `/admin/music`: feitos (24/08/2026)
 
 ```
