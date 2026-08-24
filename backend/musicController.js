@@ -144,6 +144,18 @@ async function getStatus() {
   return { ...status, activeTagUid: player.activeTagUid, pausedUid: player.pausedUid };
 }
 
+/**
+ * Para a reprodução e esvazia a playlist.
+ *
+ * Cuidado com o nome: `stop()` (abaixo) desliga o controller inteiro -- leitor e
+ * player. Esta aqui é a ação do usuário, aquela é o encerramento do processo.
+ * Ligar um botão de UI na função errada derrubaria o NFC junto.
+ */
+async function stopPlayback() {
+  state.setPlayerState({ activeTagUid: null, pausedUid: null, album: null });
+  return musicPlayer.stop();
+}
+
 async function stop() {
   if (rebroadcastTimer) clearInterval(rebroadcastTimer);
   rebroadcastTimer = null;
@@ -157,6 +169,7 @@ module.exports = {
   stop,
   simulateTag,
   getStatus,
+  stopPlayback,
   play: (album) => musicPlayer.playAlbum(album, state.getTracksByAlbum(album)),
   pause: () => musicPlayer.pause(),
   resume: () => musicPlayer.resume(),

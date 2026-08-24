@@ -693,6 +693,44 @@ chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detect
 armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
 a seção de armadilhas.
 
+#### Rotas REST e `/admin/music`: feitos (24/08/2026)
+
+```
+GET    /api/music/albums              [{album, trackCount}]
+GET    /api/music/tracks[?album=]
+POST   /api/music/import              revarre o disco e regrava o catálogo
+GET    /api/music/tags
+POST   /api/music/tags                {uid, album}  (upsert)
+DELETE /api/music/tags/:uid
+GET    /api/music/reader              tag encostada AGORA + se o leitor está de pé
+GET    /api/music/player/status
+POST   /api/music/player/:acao        play|pause|resume|restart|next|previous|volume|stop
+POST   /api/nfc-tag/simulate          {uid, event:'present'|'remove'}
+GET    /admin/music
+```
+
+Diferenças em relação ao desenho original, todas por causa do escopo "1 tag = 1 álbum":
+
+- **Não existe upload de MP3.** Faixas vêm do disco pelo importador, não de formulário. O que a
+  `/admin/music` cadastra é o mapeamento tag→álbum.
+- **`GET /api/music/reader`** existe para a página preencher o UID sozinha com a tag encostada.
+  É a diferença entre cadastrar tag e digitar hexadecimal a mão, e o UID vem do mesmo caminho que
+  o player usa, então não há como divergir.
+- **`POST /api/music/tags` recusa álbum sem faixas.** Sem isso o mapeamento só falharia na hora
+  de encostar a tag, longe de onde o erro foi cometido. A tabela do admin também marca em
+  vermelho mapeamentos cujo álbum sumiu (pasta renomeada depois do cadastro).
+
+**Armadilha de nomes que quase virou bug:** o botão "Parar" do admin foi ligado a uma ação
+`stop`, mas `musicController.stop()` **desliga o controller inteiro — leitor NFC junto**. São
+coisas diferentes com o mesmo nome. Existe agora `stopPlayback()` para a ação do usuário, e
+`stop()` segue sendo só o encerramento do processo. Verificado no Pi: depois de `POST
+/api/music/player/stop`, o `GET /api/music/reader` continua com `running: true`.
+
+A varredura do disco saiu do script para `backend/musicCatalog.js`, compartilhada entre o
+`import-music.js` e a rota de reimportar — duas implementações divergindo gerariam ids diferentes
+para os mesmos arquivos, e id estável é a propriedade que o importador inteiro existe para
+garantir.
+
 #### O mpv virou serviço systemd próprio (24/08/2026)
 
 Antes o mpv era filho do backend. Dois problemas com isso, e o segundo é o que pesou:
