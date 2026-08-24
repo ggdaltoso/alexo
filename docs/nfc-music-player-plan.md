@@ -693,6 +693,37 @@ chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detect
 armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
 a seção de armadilhas.
 
+#### `import-music.js` + catálogo em `state.js`: feitos e validados (24/08/2026)
+
+Rodado no Pi: **404 faixas em 6 álbuns**, exatamente o que estava previsto.
+
+```
+    36  Legend of Zelda, The - A Link to the Past
+    67  Legend of Zelda, The - The Minish Cap
+    86  Pokemon LeafGreen
+   101  Super Mario All-Stars
+    66  Super Mario World
+    48  Super Mario World 2 - Yoshi's Island
+```
+
+**Idempotência confirmada**: a segunda execução relata `entram: 0, saem: 0`. É o que o id
+derivado do caminho (sha1 dos 16 primeiros dígitos) compra — com `randomUUID` cada importação
+geraria ids novos para os mesmos arquivos.
+
+Laço completo validado com áudio: `getAlbums()` → `getTracksByAlbum()` → `playAlbum()` toca a
+playlist na ordem do disco, com os shapes casando sem adaptação.
+
+**Latência de enfileiramento medida**, porque `playAlbum` manda uma faixa por vez:
+
+| Álbum | Faixas | Até a promise resolver |
+|---|---|---|
+| A Link to the Past | 36 | 387 ms |
+| Super Mario All-Stars | 101 | 1038 ms |
+
+~10ms por faixa. Não é latência percebida: o áudio começa no primeiro `loadfile` (que usa
+`replace`), e os `append` seguintes só preenchem a fila. Se algum dia incomodar, a saída é
+emitir o status logo após o primeiro e completar a fila em segundo plano.
+
 #### `musicPlayer.js`: implementado e validado no Pi (24/08/2026)
 
 Cliente IPC **escrito à mão**, sem `node-mpv` — o protocolo é uma linha de JSON por comando num
