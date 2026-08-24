@@ -9,7 +9,16 @@ O Alexo hoje já tem um pipeline NFC "acidental": um dispositivo externo (celula
 - **Playback**: `mpv --idle` controlado via socket IPC JSON, usando o pacote `node-mpv`.
 - **Gestão de conteúdo**: página admin HTML server-rendered (`/admin/music`), no mesmo molde da `/admin/gallery` que já existe.
 
-Escopo v1: **1 tag = 1 música** (sem playlist/fila). "Pular música" não tem alvo definido nesse escopo — vira "reiniciar a faixa atual", deixado explícito na UI.
+Escopo v1: **1 tag = 1 álbum** — a tag aponta para uma *pasta* de faixas, não para um arquivo
+(decidido em 24/08/2026, substitui o "1 tag = 1 música" original). O mpv toca a pasta em ordem
+via `loadlist`, e `playlist-next`/`playlist-prev` passam a ser comandos IPC diretos. Isso resolve
+uma pendência do escopo antigo: "pular" não tinha alvo e tinha virado "reiniciar a faixa atual"
+na UI. Agora tem.
+
+O custo da mudança é pequeno e está concentrado no player: `musicPlayer.js` ganha
+`next()`/`previous()`, o estado ganha `trackIndex`/`trackCount`, e o cadastro deixa de ser
+upload-por-faixa para virar upload-por-pasta. O ganho é no conteúdo: um álbum novo é uma pasta
+nova e **um** mapeamento, em vez de N uploads e N mapeamentos.
 
 Essas duas features NFC (mensagem via HTTP externo vs. música via leitor físico) devem ficar **completamente desacopladas** no backend e no frontend — mesma tecnologia de transporte (WebSocket), fluxos de estado independentes.
 
@@ -604,6 +613,35 @@ para este projeto é irrelevante**: o design mapeia UID → faixa, e o UID vem d
 família. Ler *memória* da tag é que exigiria autenticação e aí o tipo importaria — não é o
 caso. Qualquer tag ISO14443A serve, Classic ou NTAG.
 
+#### O PN532 também grava — e por que mesmo assim o mapeamento fica em JSON
+
+Levantado em 24/08/2026: já que o módulo escreve, dava para gravar o álbum na própria tag e
+dispensar o mapeamento. **Escreve mesmo** — o PN532 é leitor e gravador ISO14443A, e a escrita
+sai pelo `InDataExchange` (0x40), o mesmo caminho do `InListPassiveTarget` que já funciona.
+
+O custo depende do tipo da tag, e aqui o tipo **volta a importar** (ao contrário da leitura de
+UID, onde não importava — ver a seção acima):
+
+| Tag | Como grava | Esforço |
+|---|---|---|
+| NTAG215 (as que o usuário já tem) | `WRITE` (0xA2), 4 bytes por página, 504 bytes de memória de usuário, **sem autenticação** | baixo |
+| Mifare Classic 1K (o S50 do kit) | `MifareAuthent` (0x60/0x61) por setor antes de cada acesso, blocos de 16 bytes, chave padrão `FFFFFFFFFFFF` | médio, e com o risco de corromper o *sector trailer* e inutilizar o setor |
+
+**Decisão: o mapeamento UID → pasta continua em `data/nfc-tags.json`.** O motivo não é
+dificuldade técnica. É que gravar pelo Pi não elimina passo físico nenhum: o leitor está dentro
+da caixa, então gravar exige encostar a tag no kiosk — exatamente o mesmo gesto que cadastrar.
+E cadastrar escolhendo numa lista de pastas que o backend já conhece não tem como errar o nome,
+enquanto um valor gravado na tag pode ficar órfão se a pasta for renomeada depois (e só se
+conserta com a tag na mão).
+
+**A exceção que mudaria isso: NDEF gravado pelo celular.** Se o conteúdo da tag for um NDEF text
+record, qualquer app grátis (NFC Tools) grava, e dá para preparar um lote de tags longe do Pi —
+aí a escrita elimina um passo de verdade. O preço é digitar o nome da pasta à mão, sem
+validação. **Em aberto**, aguardando decisão do usuário.
+
+Nos dois cenários o leitor precisa **cair pra trás no UID** quando a tag vier vazia ou ilegível,
+então o mapeamento em JSON existe de qualquer jeito. Não é uma escolha excludente.
+
 #### Detalhe de protocolo: abortar o comando pendente
 
 Quando o `InListPassiveTarget` expira sem achar tag, o comando **continua rodando no chip**.
@@ -663,18 +701,18 @@ Pi diferente pode numerar diferente.
 ### Novos módulos (mesmo estilo de `backend/ws.js`/`backend/state.js` — arquivos pequenos e focados)
 
 - **`backend/nfcReader.js`**: só cuida do hardware. `init()` abre a porta serial (`serialport` + `pn532`) dentro de `try/catch` — se a porta não existir (ex.: rodando num Mac/dev sem o UART), loga aviso e não faz nada, sem derrubar o servidor. Faz um `setInterval` curto (~300ms) chamando `rfid.scanTag()`; compara o UID retornado com o último UID visto: UID novo → emite `'tag-present'`; UID que sumiu (poll retorna sem tag) → emite `'tag-vanish'`. Essa lógica de presença/ausência é nossa, já que a lib não expõe um evento `vanish` pronto (diferente do que a `pn532-i2c` oferecia).
-- **`backend/musicPlayer.js`**: só cuida do mpv. `init()` sobe `mpv --idle --input-ipc-server=<path>` via `node-mpv`. Métodos `play(track)`, `pause()`, `resume()`, `restart()`, `setVolume(v)`, `getStatus()`. Emite `'status'` com `{trackId, title, filename, isPlaying, position, duration, volume}` a cada mudança real reportada pelo mpv (play/pause/fim de faixa/seek).
+- **`backend/musicPlayer.js`**: só cuida do mpv. `init()` sobe `mpv --idle --input-ipc-server=<path>` via `node-mpv`. Métodos `playAlbum(tracks)`, `pause()`, `resume()`, `restart()`, `next()`, `previous()`, `setVolume(v)`, `getStatus()`. `playAlbum` monta a playlist no mpv (`loadfile` da primeira + `append` do resto) e o mpv cuida do avanço entre faixas sozinho. Emite `'status'` com `{album, trackId, trackIndex, trackCount, title, filename, isPlaying, position, duration, volume}` a cada mudança real reportada pelo mpv (play/pause/troca de faixa/fim da playlist/seek).
 - **`backend/musicController.js`**: a cola — é o único módulo que enxerga `state`, `wsServer`, `musicPlayer` e `nfcReader` ao mesmo tempo. Regra combinada com o usuário: **mesma tag recolocada → retoma de onde parou (pause/resume)**; **tag diferente colocada → reinicia do zero**, mesmo que por acaso aponte pra mesma faixa.
-  - `tag-present(uid)` → busca `state.getTagMapping(uid)`; se não existir mapeamento, ignora. Se existir: compara `uid` com `state.getPlayerState().pausedUid` — **se for igual** (é a mesma tag que acabou de sumir), `musicPlayer.resume()`; **se for diferente** (tag nova, ou nenhuma pausa pendente), `musicPlayer.play(track)` (carga nova, começa do zero). Em ambos os casos, `state.setPlayerState({activeTagUid: uid, pausedUid: null, trackId})`.
+  - `tag-present(uid)` → busca `state.getTagMapping(uid)`; se não existir mapeamento, ignora. Se existir: compara `uid` com `state.getPlayerState().pausedUid` — **se for igual** (é a mesma tag que acabou de sumir), `musicPlayer.resume()`; **se for diferente** (tag nova, ou nenhuma pausa pendente), `musicPlayer.playAlbum(state.getTracksByAlbum(album))` (playlist nova, começa da primeira faixa). Em ambos os casos, `state.setPlayerState({activeTagUid: uid, pausedUid: null, album})`.
   - `tag-vanish(uid)` → se o UID bate com o `activeTagUid` atual, `musicPlayer.pause()` + `state.setPlayerState({activeTagUid: null, pausedUid: uid})` (guarda qual tag ficou pausada, pra decidir resume vs. restart da próxima vez).
   - `musicPlayer.on('status', ...)` → atualiza `state` e faz `wsServer.broadcast({type:'music_playback_state', ...})`.
   - Expõe `play/pause/restart/setVolume/getStatus` (reusados tanto pelas rotas REST de controle quanto por um endpoint de simulação para dev).
 
 ### `backend/state.js` — extensão (mesmo padrão da galeria)
 
-- Tracks, com persistência em `backend/data/music-tracks.json` (igual `gallery.json`): `getTracks()/addTrack()/removeTrack(id)` (removendo também precisa fazer cascade nos mapeamentos de tag que apontam pra ela). Além dessas, `replaceTracks(list)` — **escrita em lote, exigida pelo importador**: chamar `addTrack()` 404 vezes reescreveria o JSON inteiro 404 vezes, que é exatamente o padrão de I/O que a galeria já ilustra como problema no Pi Zero.
-- Mapeamentos de tag, em `backend/data/nfc-tags.json`: `getTagMappings()/getTagMapping(uid)/setTagMapping({uid,trackId})/removeTagMapping(uid)`.
-- Estado do player: **puramente em memória, sem persistir em disco** (mesmo tratamento que o já existente `state.message`) — `getPlayerState()/setPlayerState(partial)`, shape inicial `{trackId:null, title:null, filename:null, isPlaying:false, position:0, duration:null, volume:100, activeTagUid:null, pausedUid:null}`. O padrão de 100 foi decidido de ouvido no hardware real (ver seção de áudio abaixo), não chutado. `pausedUid` guarda a última tag pausada, usado pelo `musicController` pra decidir resume vs. restart (ver acima). Motivo de não persistir: posição de playback muda o tempo todo, persistir em JSON a cada tick faria I/O de disco constante no Pi Zero — igual ao alerta que a própria galeria já ilustra (toda leitura/escrita reabre o arquivo inteiro).
+- Tracks, com persistência em `backend/data/music-tracks.json` (igual `gallery.json`): `getTracks()/getAlbums()/getTracksByAlbum(album)/addTrack()/removeTrack(id)`. `getTracksByAlbum` devolve as faixas do álbum **em ordem de `filename`**, que é o que preserva a numeração `01 …`, `02 …` que o importador já lê do disco. O cascade em `removeTrack` fica mais simples do que na versão anterior deste plano: só é preciso remover o mapeamento se aquela foi a **última** faixa do álbum, porque a tag aponta para o álbum e não para a faixa. Além dessas, `replaceTracks(list)` — **escrita em lote, exigida pelo importador**: chamar `addTrack()` 404 vezes reescreveria o JSON inteiro 404 vezes, que é exatamente o padrão de I/O que a galeria já ilustra como problema no Pi Zero.
+- Mapeamentos de tag, em `backend/data/nfc-tags.json`: `getTagMappings()/getTagMapping(uid)/setTagMapping({uid,album})/removeTagMapping(uid)`. **A chave é o nome do álbum (= nome da pasta), não um `trackId`** — ver a decisão de escopo no topo. Efeito colateral bem-vindo: isso desarma a contrapartida do id derivado de caminho documentada no importador. Renomear *um arquivo* deixa de orfanar mapeamento nenhum; só renomear a *pasta* quebra, o que é bem mais raro e bem mais visível.
+- Estado do player: **puramente em memória, sem persistir em disco** (mesmo tratamento que o já existente `state.message`) — `getPlayerState()/setPlayerState(partial)`, shape inicial `{album:null, trackId:null, trackIndex:0, trackCount:0, title:null, filename:null, isPlaying:false, position:0, duration:null, volume:100, activeTagUid:null, pausedUid:null}`. O padrão de 100 foi decidido de ouvido no hardware real (ver seção de áudio abaixo), não chutado. `pausedUid` guarda a última tag pausada, usado pelo `musicController` pra decidir resume vs. restart (ver acima). Motivo de não persistir: posição de playback muda o tempo todo, persistir em JSON a cada tick faria I/O de disco constante no Pi Zero — igual ao alerta que a própria galeria já ilustra (toda leitura/escrita reabre o arquivo inteiro).
 
 ### Importação em massa das faixas — `backend/scripts/import-music.js`
 
@@ -742,7 +780,7 @@ POST   /api/music/tracks/upload   (multer, campo 'audio', mimetype audio/mpeg, ~
 DELETE /api/music/tracks/:id
 
 GET    /api/music/tags
-POST   /api/music/tags            body {uid, trackId}  (upsert)
+POST   /api/music/tags            body {uid, album}    (upsert)
 DELETE /api/music/tags/:uid
 
 GET    /api/music/player/status
@@ -765,7 +803,7 @@ Uploads em `backend/uploads/music` (paralelo a `backend/uploads/gallery`).
 { type: 'music_tags_updated' }     // idem
 {
   type: 'music_playback_state',
-  trackId, title, filename, isPlaying,
+  album, trackId, trackIndex, trackCount, title, filename, isPlaying,
   position, positionAt,   // segundos + timestamp de quando foi capturado
   duration, volume, activeTagUid, timestamp,
 }
@@ -814,8 +852,8 @@ Consequências para o player de música, que simplificam o desenho original:
 
 - `frontend/src/types.ts`: `MusicTrack`, `NfcTagMapping`, `MusicPlaybackState`.
 - `frontend/src/services/websocket.ts`: tipar o callback como união discriminada em vez de assumir sempre `NFCMessage`.
-- `frontend/src/services/api.ts`: adicionar métodos de música (`getTracks`, `uploadTrack`, `deleteTrack`, `getTagMappings`, `getPlayerStatus`, `playMusic`, `pauseMusic`, `restartMusic`, `setVolume`) — usar a classe `ApiService` já existente em vez do fetch cru que a `Galeria.tsx` usa, estabelecendo o padrão pretendido pra código novo.
-- `frontend/src/screens/MusicScreen.tsx` (novo): lê `musicPlayback` via `useApp()` (não precisa de hook de polling — o dado já chega via WS/contexto). Interpola a posição localmente a cada ~500ms enquanto tocando. Mostra título da faixa, `mm:ss / mm:ss` (com `--:--` no total enquanto `duration` for nulo — faixas importadas só ganham duração na primeira reprodução), barra de progresso (`Frame boxShadow="$in"`, no estilo das outras telas), e controles: play/pause, "reiniciar" (não "pular" — deixar claro na UI que não existe fila), volume +/-. Early-return `null` se não houver faixa ativa, igual ao padrão do `MessageScreen.tsx`.
+- `frontend/src/services/api.ts`: adicionar métodos de música (`getTracks`, `uploadTrack`, `deleteTrack`, `getTagMappings`, `getPlayerStatus`, `playMusic`, `pauseMusic`, `nextTrack`, `previousTrack`, `setVolume`) — usar a classe `ApiService` já existente em vez do fetch cru que a `Galeria.tsx` usa, estabelecendo o padrão pretendido pra código novo.
+- `frontend/src/screens/MusicScreen.tsx` (novo): lê `musicPlayback` via `useApp()` (não precisa de hook de polling — o dado já chega via WS/contexto). Interpola a posição localmente a cada ~500ms enquanto tocando. Mostra título da faixa, `mm:ss / mm:ss` (com `--:--` no total enquanto `duration` for nulo — faixas importadas só ganham duração na primeira reprodução), barra de progresso (`Frame boxShadow="$in"`, no estilo das outras telas), e controles: play/pause, anterior/próxima (agora têm alvo real — a playlist do álbum), volume +/-. Mostrar também `faixa X de Y` e o nome do álbum, já que a tag representa o álbum e não a faixa. Early-return `null` se não houver faixa ativa, igual ao padrão do `MessageScreen.tsx`.
 - `frontend/src/App.tsx`: adicionar `<Route path="/music" element={<MusicScreen />} />`.
 
 ## Verificação
