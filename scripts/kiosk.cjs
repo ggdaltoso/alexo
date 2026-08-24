@@ -14,6 +14,9 @@
  *   node scripts/kiosk.cjs console [segundos]   escuta o console (padrão: 10s)
  *   node scripts/kiosk.cjs reload               recarrega a página
  *   node scripts/kiosk.cjs info                 URL, título e tamanho da viewport
+ *   node scripts/kiosk.cjs devtools            abre o túnel e imprime a URL do
+ *                                              DevTools para colar no navegador
+ *                                              (fica de pé até Ctrl+C)
  *
  *   ALEXO_HOST=pi@outro node scripts/kiosk.cjs shot
  */
@@ -212,8 +215,34 @@ async function comandoInfo(cdp) {
   console.log(`view  ${v.w}x${v.h} @${v.dpr}x`);
 }
 
+/**
+ * Mantém o túnel aberto e imprime a URL do DevTools.
+ *
+ * Usa o frontend servido pelo PRÓPRIO Pi (`/devtools/inspector.html`), e não o
+ * `edge://inspect` / `chrome://inspect` do navegador local. Os dois funcionam,
+ * mas o do Pi vem na versão do Chrome 88 que está rodando lá; o do navegador
+ * local é muito mais novo e conversa com um protocolo de 2021, o que costuma
+ * aparecer como painéis vazios ou botões que não fazem nada.
+ */
+async function comandoDevtools(cdp) {
+  const alvos = await getJson('/json');
+  const alvo = alvos.find((t) => t.type === 'page' && t.url.includes('localhost:3001'));
+  const url = `${BASE}/devtools/inspector.html?ws=127.0.0.1:${PORTA}/devtools/page/${alvo.id}`;
+
+  console.log('\nCole no navegador:\n');
+  console.log(`  ${url}\n`);
+  console.log(`Alternativa: edge://inspect/#devices, em "Discover network targets"`);
+  console.log(`adicione 127.0.0.1:${PORTA}. O frontend será o do Edge, mais novo`);
+  console.log(`que o Chrome 88 do Pi -- se algum painel vier vazio, use a URL acima.\n`);
+  console.log('Túnel aberto. Ctrl+C para fechar.');
+
+  // Segura o processo: fechar aqui derrubaria o túnel no meio do uso.
+  await new Promise(() => {});
+}
+
 const COMANDOS = {
   shot: comandoShot,
+  devtools: comandoDevtools,
   eval: comandoEval,
   console: comandoConsole,
   reload: comandoReload,

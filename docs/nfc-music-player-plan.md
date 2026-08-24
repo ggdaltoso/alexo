@@ -711,6 +711,15 @@ navegador a quem alcançar a porta, sem autenticação nenhuma — na rede local
 que deixar o kiosk aberto. O script abre um túnel SSH sozinho, usa e fecha, então na prática o
 uso é igual ao de uma porta local.
 
+Para inspecionar pelo navegador da máquina de dev, `node scripts/kiosk.cjs devtools` abre o
+túnel, imprime a URL do DevTools e fica de pé até Ctrl+C.
+
+**Preferir o frontend servido pelo próprio Pi** (`/devtools/inspector.html?ws=...`) ao
+`edge://inspect` / `chrome://inspect` local. Os dois funcionam, mas o do Pi vem na versão do
+Chrome 88 que está rodando lá; o do navegador local é muito mais novo e conversa com um protocolo
+de 2021, o que costuma aparecer como painel vazio ou botão que não faz nada — e o sintoma parece
+"o kiosk está quebrado" em vez de "as versões não batem".
+
 O arquivo é `.cjs`, não `.js`: o `package.json` da raiz tem `"type": "module"`.
 
 Viewport real do kiosk, medida por aqui: **500x320** (não 480, como as capturas antigas sugeriam).
