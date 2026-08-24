@@ -211,6 +211,27 @@ class PN532I2C:
         except BusError:
             pass
 
+    def drain(self, rounds=6):
+        """
+        Descarta respostas atrasadas que sobraram no barramento.
+
+        Necessário ao iniciar: se o processo anterior morreu com um comando
+        pendente (Ctrl+C, systemd reiniciando o serviço), a resposta dele ainda
+        sai na primeira leitura do processo novo -- que a interpreta como o ACK
+        do próprio comando e dessincroniza tudo dali em diante.
+        """
+        for _ in range(rounds):
+            try:
+                status = self._read(1)
+            except BusError:
+                return
+            if not (status and status[0] & 0x01):
+                return  # nada pendente
+            try:
+                self._read(64)  # lê e joga fora
+            except BusError:
+                return
+
     def send_command(self, data, response_len, timeout=1.0):
         """Envia um comando, confirma o ACK e devolve o payload da resposta."""
         try:

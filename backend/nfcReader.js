@@ -276,6 +276,26 @@ async function init() {
     const i2c = require('i2c-bus');
     bus = await i2c.openPromisified(BUS_NUMBER);
     device = new Pn532I2C(bus, PN532_ADDRESS);
+    // Ressincroniza o barramento antes do primeiro comando de verdade.
+    //
+    // Se o processo anterior morreu com um comando pendente -- rotina, com
+    // Restart=always no systemd -- a resposta atrasada dele sai na primeira
+    // leitura deste processo, que a leria como o ACK do próprio comando e
+    // dessincronizaria tudo dali em diante.
+    //
+    // O jeito óbvio de limpar seria ler e descartar os bytes pendentes, e é o que
+    // a versão Python das ferramentas faz. NÃO fazer isso aqui: o os.read do
+    // Python aceita leitura curta, mas o i2cRead do i2c-bus exige o tamanho exato
+    // e fica clocando um dispositivo que tem menos bytes que isso -- o que TRAVA
+    // o barramento bit-banged e só sai com reboot (aconteceu em 24/08/2026).
+    //
+    // Em vez disso, um comando descartável: se o barramento estiver
+    // dessincronizado, é ele que come a resposta velha e falha, e o próximo já
+    // encontra tudo limpo. Só transações bem formadas.
+    await device.abort();
+    await sleep(50);
+    await device.sendCommand([CMD_GET_FIRMWARE_VERSION], 12, 300);
+    await sleep(50);
 
     const fw = await device.sendCommand([CMD_GET_FIRMWARE_VERSION], 12);
     if (fw.error) throw new Error(`GetFirmwareVersion: ${fw.error}`);

@@ -26,7 +26,17 @@ export function Galeria() {
       const res = await fetch(`${API_CONFIG.BASE_URL}/api/gallery`);
       if (!res.ok) return;
       const data: GalleryItem[] = await res.json();
-      setImages([...data].sort((a, b) => a.order - b.order));
+      const next = [...data].sort((a, b) => a.order - b.order);
+      // Preservar a referência quando nada mudou é obrigatório, não otimização.
+      // O efeito do slideshow depende de `images`: um array novo a cada poll o
+      // remonta e zera o timer. Com poll de 30s e slide de 5min, o timer nunca
+      // chegava a disparar e a galeria ficava parada na primeira foto.
+      setImages((prev) => {
+        const igual =
+          prev.length === next.length &&
+          prev.every((p, i) => p.id === next[i].id && p.url === next[i].url);
+        return igual ? prev : next;
+      });
     } catch {
       // silently ignore network errors
     }

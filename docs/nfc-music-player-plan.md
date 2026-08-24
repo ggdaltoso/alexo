@@ -719,24 +719,49 @@ comando estivesse malformado.
 **Ao investigar "não lê tag", confirmar o campo RF antes de suspeitar do código** — rodar o
 `nfc-read-uid.py` na mão e ver um UID aparecer.
 
-#### Pendente: dropout com a tag parada
+#### O "dropout com a tag parada" não existia — era bug de ferramenta
 
-No teste de validação, com a tag **imóvel** na antena, o leitor a perdeu por ~4s e reencontrou:
+Registrado porque custou várias rodadas de teste com o usuário e por pouco não virou uma
+mudança de hardware desnecessária.
 
-```
- 0.90s  PRESENTE  04426A126F6180
- 5.07s  REMOVIDA  04426A126F6180   <- tag parada
- 9.14s  PRESENTE  04426A126F6180
-```
+**Sintoma:** com a tag imóvel na antena, o leitor lia uma ou duas vezes e depois nada, por 45s
+seguidos. Reproduzível. Três estratégias de varredura contínua foram testadas — pura, com
+`InRelease`, e ciclando o campo RF — e **todas** deram ~2%. Isso parecia descartar protocolo e
+apontar para acoplamento RF marginal.
 
-Acoplamento marginal. Importa para a música: um `tag-vanish` falso pausa a faixa e o
-`tag-present` seguinte manda continuar, então o usuário ouviria um buraco de ~4s. O
-`VANISH_CONFIRMATIONS = 2` atual (~2s de tolerância) não cobre isso.
+**Causa real:** o `nfc-dropout-test.py` pedia 12 bytes na resposta do `SAMConfiguration`, que
+tem 9. Os 3 bytes a mais eram consumidos do barramento e dessincronizavam **todos** os comandos
+seguintes. A ferramenta de medição é que estava quebrada; o hardware sempre esteve bom.
 
-**Não resolver só aumentando o número.** Cobrir 4s exigiria ~5 confirmações, e isso viraria ~5s
-entre tirar a tag e a música pausar — péssimo para o gesto "tirei a tag, parou". O dropout é
-sintoma de posicionamento, e a correção primária é física: fixar o módulo numa posição boa e
-remedir. Só depois ajustar a tolerância, com o número justificado pela medição.
+**Medição correta, com a tag parada: 100% de leitura.** O `VANISH_CONFIRMATIONS = 2` é adequado
+e o modelo "tag em cima = tocando, tag fora = pausado" é viável.
+
+**O tamanho da resposta em `send_command` não é decoração.** Pedir mais bytes do que o frame tem
+consome o que vem depois e dessincroniza o barramento. Ao ver leitura intermitente inexplicável,
+conferir os tamanhos antes de suspeitar do rádio.
+
+**E desconfiar da ferramenta antes de desconfiar do hardware.** O sinal que deveria ter levantado
+a suspeita mais cedo: o `nfc-read-uid.py` (que usava os tamanhos certos) funcionava para o
+usuário na mesma sessão em que o `nfc-dropout-test.py` falhava.
+
+#### Nunca ler mais bytes do que há pendentes pelo `i2c-bus`
+
+Em 24/08/2026 o barramento travou de vez: `i2cdetect` parava no terceiro endereço, e
+`raspi-gpio get 14,15` mostrava **GPIO14 (SCL) em `level=0` como INPUT** — com os pull-ups do
+Pi, entrada solta lê 1, então algo externo estava segurando a linha. Era o PN532 esticando o
+clock, travado no meio de uma transação.
+
+A causa foi um `drain()` no `nfcReader.js` que fazia `read(64)` para descartar bytes pendentes.
+Em Python isso é inofensivo (`os.read` aceita leitura curta), **mas o `i2cRead` do `i2c-bus`
+exige o tamanho exato e fica clocando** um dispositivo que tem menos bytes que isso. Mesmo
+algoritmo, seguro de um lado e destrutivo do outro.
+
+**Não sai com reboot quente**: o módulo é alimentado pelo pino 3V3 do Pi, que não cai num
+`reboot`. Precisa de `poweroff` + tirar da tomada.
+
+A ressincronização no `init()` hoje usa um `GetFirmwareVersion` descartável em vez de leitura
+crua: se o barramento estiver dessincronizado, é ele que come a resposta velha e falha, e o
+comando seguinte já encontra tudo limpo. Só transações bem formadas.
 
 #### Escolha de biblioteca: cliente próprio sobre `i2c-bus`
 
