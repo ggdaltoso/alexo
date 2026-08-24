@@ -203,6 +203,16 @@ let atual = {
   volume: DEFAULT_VOLUME,
 };
 
+// Instante da última mudança real entre tocando e parado.
+//
+// Não dá para derivar isso de `positionAt`, que é recalculado a cada consulta:
+// quem perguntar o status de uma faixa pausada há dez minutos recebe
+// positionAt = agora. O cliente precisa saber HÁ QUANTO TEMPO parou (é o que
+// decide se o painel de música ainda aparece), e para isso o carimbo tem de ser
+// estável entre consultas.
+let ultimoIsPlaying = null;
+let mudouEstadoEm = Date.now();
+
 function trackAt(index) {
   return atual.tracks[index] || null;
 }
@@ -230,6 +240,14 @@ async function buildStatus() {
 
   const idx = typeof indice === 'number' && indice >= 0 ? indice : 0;
   const faixa = trackAt(idx);
+  const tocando = pausado === false && faixa !== null;
+
+  // Só carimba quando o valor muda de verdade: buildStatus roda a cada polling,
+  // e carimbar sempre destruiria a informação que este campo carrega.
+  if (ultimoIsPlaying !== tocando) {
+    ultimoIsPlaying = tocando;
+    mudouEstadoEm = Date.now();
+  }
 
   return {
     album: atual.album,
@@ -238,9 +256,10 @@ async function buildStatus() {
     trackCount: atual.tracks.length,
     title: faixa ? faixa.title : null,
     filename: faixa ? faixa.filename : null,
-    isPlaying: pausado === false && faixa !== null,
+    isPlaying: tocando,
     position: typeof posicao === 'number' ? posicao : 0,
     positionAt: Date.now(),
+    stateChangedAt: mudouEstadoEm,
     duration: typeof duracao === 'number' ? duracao : null,
     volume: typeof volume === 'number' ? volume : atual.volume,
   };
@@ -451,8 +470,8 @@ async function getStatus() {
     return {
       album: null, trackId: null, trackIndex: 0, trackCount: 0,
       title: null, filename: null, isPlaying: false,
-      position: 0, positionAt: Date.now(), duration: null,
-      volume: atual.volume,
+      position: 0, positionAt: Date.now(), stateChangedAt: mudouEstadoEm,
+      duration: null, volume: atual.volume,
     };
   }
   return buildStatus();

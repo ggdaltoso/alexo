@@ -17,6 +17,16 @@ import { useApp } from '../contexts';
 // WebSocket em transições; isto aqui é interpolação local.
 const TICK_MS = 500;
 
+/**
+ * Quanto tempo o painel continua visível depois que a música para.
+ *
+ * O painel não fica na tela o tempo todo: ele aparece quando há música tocando e
+ * some um minuto depois de parar. Sumir na hora seria brusco -- tirar a tag para
+ * trocar de álbum faria a UI piscar -- e ficar para sempre desperdiçaria um
+ * quarto da tela mostrando "Nada tocando".
+ */
+const JANELA_APOS_PARAR_MS = 60000;
+
 function mmss(segundos: number) {
   const s = Math.max(0, Math.floor(segundos));
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -27,6 +37,8 @@ export function MusicPlayer() {
   const [agora, setAgora] = useState(Date.now());
 
   const tocando = musicPlayback?.isPlaying ?? false;
+  const temFaixa = Boolean(musicPlayback?.title);
+  const paradoEm = musicPlayback?.stateChangedAt ?? 0;
 
   useEffect(() => {
     // Só conta tempo enquanto toca. Parado, a posição é a que o backend mandou.
@@ -35,14 +47,27 @@ export function MusicPlayer() {
     return () => clearInterval(id);
   }, [tocando]);
 
-  const vazio = !musicPlayback || !musicPlayback.title;
+  useEffect(() => {
+    // Um único timer marcado para o fim da janela, em vez de ficar consultando o
+    // relógio: o painel só precisa re-renderizar uma vez, no instante em que
+    // deixa de ser visível. Num Pi Zero, um setInterval eterno para isso seria
+    // desperdício.
+    if (tocando || !temFaixa) return;
+    const restante = JANELA_APOS_PARAR_MS - (Date.now() - paradoEm);
+    if (restante <= 0) return;
+    const id = setTimeout(() => setAgora(Date.now()), restante + 50);
+    return () => clearTimeout(id);
+  }, [tocando, temFaixa, paradoEm]);
+
+  // Visível tocando, e por mais um minuto depois de parar.
+  const visivel = temFaixa && (tocando || agora - paradoEm < JANELA_APOS_PARAR_MS);
+  if (!visivel) return null;
 
   // Interpolação local: o backend manda {position, positionAt} nas transições e
   // o resto do tempo o relógio daqui completa. É o que evita um broadcast por
   // segundo para todos os clientes.
-  const posicao = vazio
-    ? 0
-    : musicPlayback!.position + (tocando ? (agora - musicPlayback!.positionAt) / 1000 : 0);
+  const posicao =
+    musicPlayback!.position + (tocando ? (agora - musicPlayback!.positionAt) / 1000 : 0);
 
   const duracao = musicPlayback?.duration ?? null;
   // Enquanto o mpv não carregou a faixa, `duration` é nula: max=0 deixa o cursor
@@ -70,45 +95,38 @@ export function MusicPlayer() {
         pb="$10"
         bgColor="$material"
       >
-        {vazio ? (
-          <span className="truncate opacity-60">Nada tocando</span>
-        ) : (
-          <>
-            <span className="truncate">
-              {tocando ? '▶' : '‖'} {musicPlayback!.title}
-            </span>
-            <span className="truncate opacity-60 text-[0.7em]">
-              {musicPlayback!.album}
-              {musicPlayback!.trackCount > 0 &&
-                ` · ${musicPlayback!.trackIndex + 1}/${musicPlayback!.trackCount}`}
-            </span>
-            <div className="flex items-center gap-2">
-              {/*
-                Inerte de propósito: o painel mostra, não comanda. `disabled`
-                deixaria o cursor cinza e sugeriria "quebrado", então o que
-                desliga a interação é pointer-events + tabIndex -- visualmente
-                continua um controle normal, só que não responde ao toque.
-                O onChange vazio existe só para o React não reclamar de input
-                controlado sem handler.
-              */}
-              <Range
-                className="w-full pointer-events-none"
-                min={0}
-                max={limite}
-                step="any"
-                value={atual}
-                onChange={() => {}}
-                tabIndex={-1}
-                aria-hidden
-              />
-              <span className="text-[0.7em] whitespace-nowrap opacity-60">
-                {/* duration é nula até o mpv carregar a faixa: mostrar --:-- é
-                    mais honesto que 00:00, que parece uma faixa de duração zero */}
-                {mmss(posicao)} / {duracao ? mmss(duracao) : '--:--'}
-              </span>
-            </div>
-          </>
-        )}
+        <span className="truncate">
+          {tocando ? '▶' : '‖'} {musicPlayback!.title}
+        </span>
+        <span className="truncate opacity-60 text-[0.7em]">
+          {musicPlayback!.album}
+          {musicPlayback!.trackCount > 0 &&
+            ` · ${musicPlayback!.trackIndex + 1}/${musicPlayback!.trackCount}`}
+        </span>
+        <div className="flex items-center gap-2">
+          {/*
+            Inerte de propósito: o painel mostra, não comanda. `disabled`
+            deixaria o cursor cinza e sugeriria "quebrado", então o que desliga a
+            interação é pointer-events + tabIndex -- visualmente continua um
+            controle normal, só que não responde ao toque. O onChange vazio
+            existe só para o React não reclamar de input controlado sem handler.
+          */}
+          <Range
+            className="w-full pointer-events-none"
+            min={0}
+            max={limite}
+            step="any"
+            value={atual}
+            onChange={() => {}}
+            tabIndex={-1}
+            aria-hidden
+          />
+          <span className="text-[0.7em] whitespace-nowrap opacity-60">
+            {/* duration é nula até o mpv carregar a faixa: mostrar --:-- é mais
+                honesto que 00:00, que parece uma faixa de duração zero */}
+            {mmss(posicao)} / {duracao ? mmss(duracao) : '--:--'}
+          </span>
+        </div>
       </Frame>
     </Frame>
   );

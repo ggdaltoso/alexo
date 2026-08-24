@@ -693,6 +693,46 @@ chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detect
 armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
 a seção de armadilhas.
 
+#### Inspeção remota do kiosk (24/08/2026)
+
+O Chromium do Pi sobe com `--remote-debugging-port=9222`, e `scripts/kiosk.cjs` fala com ele pelo
+protocolo DevTools:
+
+```bash
+node scripts/kiosk.cjs shot [arquivo.png]   # captura a tela do kiosk
+node scripts/kiosk.cjs eval "<js>"          # roda JS na página
+node scripts/kiosk.cjs console [segundos]   # escuta o console
+node scripts/kiosk.cjs reload
+node scripts/kiosk.cjs info
+```
+
+**A porta fica em 127.0.0.1, nunca em 0.0.0.0.** O depurador remoto dá controle total do
+navegador a quem alcançar a porta, sem autenticação nenhuma — na rede local isso seria o mesmo
+que deixar o kiosk aberto. O script abre um túnel SSH sozinho, usa e fecha, então na prática o
+uso é igual ao de uma porta local.
+
+O arquivo é `.cjs`, não `.js`: o `package.json` da raiz tem `"type": "module"`.
+
+Viewport real do kiosk, medida por aqui: **500x320** (não 480, como as capturas antigas sugeriam).
+
+#### Painel de música é condicional (24/08/2026)
+
+Aparece quando há música tocando e some **um minuto** depois de parar. Sumir na hora seria
+brusco (tirar a tag para trocar de álbum faria a UI piscar) e ficar para sempre desperdiçaria um
+quarto da tela mostrando "Nada tocando". Quando some, a Galeria expande e ocupa a coluna.
+
+**Isso exigiu um campo novo no status: `stateChangedAt`.** O `positionAt` não serve, porque é
+recalculado a cada consulta — quem perguntar o status de uma faixa pausada há dez minutos recebe
+`positionAt = agora`, e o painel reapareceria por um minuto a cada F5. O `stateChangedAt` só é
+carimbado quando `isPlaying` muda de verdade, o que o torna estável entre consultas.
+
+No cliente, a expiração da janela é **um `setTimeout` marcado para o instante exato**, não um
+`setInterval` consultando o relógio: o painel só precisa re-renderizar uma vez, quando deixa de
+ser visível.
+
+Verificado no kiosk real, via `scripts/kiosk.cjs`, nos quatro estados: sem música (ausente),
+tocando (visível), pausado (visível), 62s após pausar (ausente, galeria expandida).
+
 #### Dashboard `/admin` e seleção de faixa (24/08/2026)
 
 `/admin` é o índice: contagens de conteúdo (imagens, álbuns, faixas, tags) renderizadas no

@@ -90,6 +90,14 @@ export interface MusicPlaybackState {
    * seguinte, em vez de exigir um fluxo contínuo pelo WebSocket.
    */
   positionAt: number;
+  /**
+   * Instante (epoch ms) da última mudança entre tocando e parado.
+   *
+   * Estável entre consultas, ao contrário de `positionAt`. É o que permite saber
+   * há quanto tempo a música parou -- e por isso o que decide se o painel ainda
+   * deve aparecer depois de uma pausa.
+   */
+  stateChangedAt: number;
   duration: number | null;
   volume: number;
   activeTagUid: string | null;

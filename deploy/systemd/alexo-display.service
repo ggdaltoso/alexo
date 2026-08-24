@@ -5,7 +5,14 @@ Requires=alexo.service
 
 [Service]
 User=pi
-ExecStart=/usr/bin/chromium-browser --kiosk --incognito --disable-infobars http://localhost:3001
+# --remote-debugging-port abre o protocolo DevTools do Chromium, que é como o
+# kiosk é inspecionado de fora (ver scripts/kiosk.js).
+#
+# Fica em 127.0.0.1 de propósito: o depurador remoto dá controle TOTAL do
+# navegador a quem alcançar a porta, sem autenticação nenhuma. O acesso de fora é
+# por túnel SSH -- `ssh -N -L 9222:localhost:9222 pi@<host>` -- e não por
+# --remote-debugging-address=0.0.0.0, que largaria isso aberto na rede local.
+ExecStart=/usr/bin/chromium-browser --kiosk --incognito --disable-infobars --remote-debugging-port=9222 http://localhost:3001
 Environment=DISPLAY=:0
 Restart=always
 RestartSec=10
