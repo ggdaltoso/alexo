@@ -8,20 +8,28 @@
 # Também pinga o gateway a cada amostra -- é o que distingue "sinal fraco" de
 # "rádio parou de responder", que é o sintoma que estamos investigando.
 #
-# Uso (no Pi):
-#   setsid nohup bash scripts/wifi-monitor.sh > /dev/null 2>&1 &
-#   tail -f /tmp/wifi-monitor.log
+# Escreve em stdout, não em arquivo. Rodando como serviço, quem guarda é o
+# journald -- que já está persistente e com teto de 50 MB, então não é preciso
+# inventar rotação de log. Um arquivo em /tmp, como era antes, some no reboot,
+# e foi assim que perdemos o histórico da queda de 25/08.
+#
+# Como serviço (é o normal):
+#   sudo systemctl enable --now wifi-monitor
+#   journalctl -u wifi-monitor -f
+#   journalctl -u wifi-monitor --since '-2h' | grep SEM_RESPOSTA
+#
+# À mão:
+#   bash scripts/wifi-monitor.sh | tee /tmp/wifi.log
 #
 # INTERVALO=10 bash scripts/wifi-monitor.sh    # padrão: 15s
 set -u
 export PATH=/usr/sbin:/sbin:$PATH
 
-LOG=${LOG:-/tmp/wifi-monitor.log}
 INTERVALO=${INTERVALO:-15}
 GATEWAY=$(ip route | awk '/^default/ {print $3; exit}')
 
-echo "# iniciado $(date '+%F %T')  gateway=$GATEWAY  intervalo=${INTERVALO}s" >> "$LOG"
-echo "# horario  sinal_dBm  qualidade  bitrate_Mbps  ping_ms  carga  servicos_ativos" >> "$LOG"
+echo "# iniciado $(date '+%F %T')  gateway=$GATEWAY  intervalo=${INTERVALO}s"
+echo "# horario  sinal_dBm  qualidade  bitrate_Mbps  ping_ms  carga  servicos_ativos"
 
 while true; do
   linha=$(iwconfig wlan0 2>/dev/null)
@@ -40,8 +48,11 @@ while true; do
   done
   [ -z "$ativos" ] && ativos="(nenhum)"
 
+  # Sinal como '?' significa que o iwconfig não reportou nada -- interface
+  # desassociada. É a assinatura da queda de verdade, diferente de ping lento
+  # por Pi ocupado.
   printf '%s  %-4s  %-6s  %-5s  %-12s  %-5s  %s\n' \
-    "$(date '+%H:%M:%S')" "$sinal" "$qual" "$taxa" "$ping_ms" "$carga" "$ativos" >> "$LOG"
+    "$(date '+%H:%M:%S')" "$sinal" "$qual" "$taxa" "$ping_ms" "$carga" "$ativos"
 
   sleep "$INTERVALO"
 done
