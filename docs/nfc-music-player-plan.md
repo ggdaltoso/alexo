@@ -693,36 +693,23 @@ chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detect
 armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
 a seção de armadilhas.
 
-#### Inspeção remota do kiosk (24/08/2026)
+#### Inspeção remota do kiosk: tentada e removida (24/08/2026)
 
-O Chromium do Pi sobe com `--remote-debugging-port=9222`, e `scripts/kiosk.cjs` fala com ele pelo
-protocolo DevTools:
+Chegou a funcionar: `--remote-debugging-port=9222` no Chromium do Pi, túnel SSH, e um
+`scripts/kiosk.cjs` que falava o protocolo DevTools (screenshot, eval, console, reload). Foi com
+ele que o painel de música condicional foi verificado nos quatro estados.
 
-```bash
-node scripts/kiosk.cjs shot [arquivo.png]   # captura a tela do kiosk
-node scripts/kiosk.cjs eval "<js>"          # roda JS na página
-node scripts/kiosk.cjs console [segundos]   # escuta o console
-node scripts/kiosk.cjs reload
-node scripts/kiosk.cjs info
-```
+**Removido no mesmo dia.** Toda vez que o script rodou, o Pi teve problema de conexão — numa
+delas caiu da rede por completo, com `ip neigh` reportando `FAILED` (não respondia nem a ARP) e
+exigindo reset físico. A correlação não foi provada, mas repetiu-se o suficiente para não valer
+o risco num aparelho que fica ligado sozinho.
 
-**A porta fica em 127.0.0.1, nunca em 0.0.0.0.** O depurador remoto dá controle total do
-navegador a quem alcançar a porta, sem autenticação nenhuma — na rede local isso seria o mesmo
-que deixar o kiosk aberto. O script abre um túnel SSH sozinho, usa e fecha, então na prática o
-uso é igual ao de uma porta local.
+A flag saiu do `alexo-display.service` junto com o script: sem ela, some também a porta de
+depuração, que dá controle total do navegador a quem a alcançar.
 
-Para inspecionar pelo navegador da máquina de dev, `node scripts/kiosk.cjs devtools` abre o
-túnel, imprime a URL do DevTools e fica de pé até Ctrl+C.
-
-**Preferir o frontend servido pelo próprio Pi** (`/devtools/inspector.html?ws=...`) ao
-`edge://inspect` / `chrome://inspect` local. Os dois funcionam, mas o do Pi vem na versão do
-Chrome 88 que está rodando lá; o do navegador local é muito mais novo e conversa com um protocolo
-de 2021, o que costuma aparecer como painel vazio ou botão que não faz nada — e o sintoma parece
-"o kiosk está quebrado" em vez de "as versões não batem".
-
-O arquivo é `.cjs`, não `.js`: o `package.json` da raiz tem `"type": "module"`.
-
-Viewport real do kiosk, medida por aqui: **500x320** (não 480, como as capturas antigas sugeriam).
+**Se algum dia for retomado**, vale investigar antes se o problema é carga (o Chromium com
+depurador ativo num Pi Zero W) ou o próprio tráfego do túnel sobre o Wi-Fi. E a porta continua
+tendo que ficar em 127.0.0.1, nunca em 0.0.0.0.
 
 #### Painel de música é condicional (24/08/2026)
 
