@@ -31,14 +31,35 @@ const CMD_IN_LIST_PASSIVE_TARGET = 0x4a;
 // da UART e não dá pra mover. Ver o plano.
 const BUS_NUMBER = Number(process.env.PN532_I2C_BUS || 3);
 
-const POLL_INTERVAL_MS = 150;
+// Configuráveis por ambiente para permitir varrer valores sem redeploy, ao
+// investigar a interferência com o Wi-Fi descrita abaixo.
+const POLL_INTERVAL_MS = Number(process.env.PN532_POLL_MS || 300);
+
+/**
+ * Intervalo entre as leituras do byte de status, dentro de waitReady.
+ *
+ * Este número é o que mais pesa no sistema inteiro, e não é óbvio por quê.
+ *
+ * O /dev/i2c-3 é `i2c-gpio`: I2C bit-banged, o kernel chaveando dois GPIOs por
+ * software com temporização crítica. Isso compete com o driver Wi-Fi, que é
+ * SDIO e igualmente sensível a latência de interrupção. Medido em 25/08/2026:
+ * com a varredura ativa o bitrate do Wi-Fi caía de ~43 Mbps para ~6,5 Mbps e os
+ * pings chegavam a 433ms ou falhavam; com o mesmo backend e a varredura
+ * desligada, 52 Mbps e zero falhas em 5 minutos.
+ *
+ * A 10ms, uma varredura vazia fazia até 80 transações I2C (800ms de espera).
+ * A 50ms são até 16 -- cinco vezes menos -- ao custo de até 50ms a mais para
+ * perceber a resposta do chip, que é imperceptível no gesto de encostar a tag.
+ */
+const STATUS_POLL_MS = Number(process.env.PN532_STATUS_POLL_MS || 50);
 const CMD_TIMEOUT_MS = 1000;
-const IN_LIST_TIMEOUT_MS = 800;
+const IN_LIST_TIMEOUT_MS = Number(process.env.PN532_IN_LIST_TIMEOUT_MS || 800);
 
 // Quantas varreduras vazias seguidas antes de dar a tag por removida. Existe
 // porque uma tag parada na antena erra uma leitura de vez em quando, e um
 // 'tag-vanish' falso faria a música pausar e voltar sozinha. O custo é latência:
-// cada varredura vazia gasta ~IN_LIST_TIMEOUT_MS, então 2 confirmações ≈ 1,6s
+// cada varredura vazia gasta ~IN_LIST_TIMEOUT_MS mais POLL_INTERVAL_MS, então
+// 2 confirmações ≈ 2,2s
 // entre tirar a tag e a música pausar. Medir no Pi antes de mexer neste número.
 const VANISH_CONFIRMATIONS = 2;
 
@@ -112,7 +133,7 @@ class Pn532I2C {
         if (!(err instanceof BusError)) throw err;
         // NACK enquanto o chip processa é normal; tentar de novo
       }
-      await sleep(10);
+      await sleep(STATUS_POLL_MS);
     }
     return false;
   }

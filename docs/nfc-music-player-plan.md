@@ -693,6 +693,71 @@ chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detect
 armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
 a seção de armadilhas.
 
+#### As fotos da galeria derrubavam o Wi-Fi (25/08/2026)
+
+Investigação longa, com três hipóteses minhas refutadas pelo caminho. Registrada em detalhe
+porque o mecanismo não é óbvio e o sintoma aponta para o lugar errado.
+
+**Sintoma:** o Pi caía da rede a cada poucas horas. Roteador mostrando conectado, `ip neigh` em
+`FAILED`, SSH e backend inacessíveis — mas o kiosk continuava funcionando, porque só consome
+`localhost`. Na UI do Raspbian aparecia o "xx" sobre o ícone de Wi-Fi.
+
+**Causa raiz: fotos de celular em resolução plena.** As cinco imagens da galeria eram 3468x4624
+e afins. O arquivo é pequeno (115–653 KB, JPEG comprime bem), mas para desenhar o navegador
+descomprime, e cada pixel vira 4 bytes: **190 MB decodificados num aparelho de 430 MB**. O
+painel que as exibe tem ~240x230.
+
+A cadeia que liga uma coisa à outra: memória estoura → kernel usa swap no cartão SD → **no
+BCM2835 o cartão SD e o rádio Wi-Fi dividem o controlador SDIO** → o rádio não é atendido e
+perde a associação.
+
+Depois de reduzir para 800px no lado maior: 190 MB → 8,2 MB decodificados, memória disponível de
+80 MB para ~250 MB, e **53 amostras sem uma única desconexão** contra 5 falhas em 20 antes.
+
+`backend/scripts/resize-gallery.py` faz a redução em lote e também um arquivo só; o
+`POST /api/gallery/upload` chama o modo de arquivo único antes de registrar a foto no catálogo,
+para que uma imagem grande nunca chegue a ser exibida. Feito em Python porque o Pillow já está
+no Pi e as alternativas em Node são addons nativos que não compilam bem no ARMv6.
+
+**Hipóteses refutadas, todas defendidas por mim com confiança antes de medir:**
+
+| Hipótese | Veredito |
+|---|---|
+| Subtensão da fonte (o ampli divide trilho com o rádio) | **Falsa** — `vcgencmd get_throttled` = `0x0`, zero ocorrências no dmesg |
+| O túnel de depuração do kiosk (`kiosk.cjs`) | **Falsa** — as quedas continuaram depois de removido, e a sessão do usuário caía junto com a minha |
+| A varredura I2C do PN532 | **Parcial** — o efeito é real e medido (bitrate 6,5 contra 52 Mbps em medições pareadas), mas não era a causa principal |
+
+O I2C bit-banged (`i2c-gpio`) provavelmente soma pelo mesmo caminho, atrasando o atendimento do
+SDIO. Reduzir a varredura em 10x **não** resolveu, o que indica que ele não era o gargalo.
+
+**Lições de método, que custaram tempo:**
+
+- O monitor tem de rodar **no Pi**, gravando em disco: medir de fora perde conexão e dados
+  justamente no instante da queda. `scripts/wifi-monitor.sh` faz isso.
+- **`ping` mede duas coisas ao mesmo tempo.** Com carga alta num núcleo único, o processo de
+  ping é preterido pelo escalonador e a amostra falha com a rede perfeita. Separar "rede caiu"
+  (campos do `iwconfig` vindo como `?`) de "Pi ocupado" é obrigatório.
+- **Carga alta com CPU ociosa significa I/O bloqueado**, não computação — foi o que apontou para
+  o swap.
+- Sinal medido flutua ~9 dBm sozinho; comparações precisam ser pareadas no tempo.
+
+#### Também em 25/08/2026
+
+- **Power save do Wi-Fi desligado**, imediato e persistente via `deploy/systemd/wifi-powersave-off.service`.
+  Estava ligado e é causa clássica desse sintoma, mas não era o principal aqui.
+- **`--kiosk` removido** do display: cobrir a tela inteira tira o acesso ao desktop do Raspbian,
+  que é útil para manutenção no aparelho.
+- **Flags de memória no Chromium** (`--renderer-process-limit=1`, `--disable-dev-shm-usage`,
+  `--disable-extensions`, `--js-flags=--max-old-space-size=48`).
+- **Journald persistente** (`Storage=persistent`, teto de 50 MB): o `dmesg` só cobre o boot
+  atual, e já perdemos evidência de quedas anteriores por isso.
+- **Serviços dispensáveis somam só 3,1 MB** (smbd, nmbd, cups, avahi, bluetoothd). Desligá-los
+  não ajuda memória. O Bluetooth foi religado a pedido; vale lembrar que ele divide o chip e a
+  antena com o Wi-Fi no Zero W, então há um argumento de rádio, não de memória.
+- **`systemctl disable` apaga o unit** quando ele está em `/etc/systemd/system/` como symlink.
+  Aconteceu com `alexo.service` e `alexo-display.service`; só foi recuperável porque estavam
+  versionados em `deploy/systemd/`. Agora são arquivos de verdade nos dois lados.
+
 #### `@react95/icons`: importar ícone a ícone, nunca do barril
 
 Atualizar de 2.2.0 para 2.5.3 **quintuplicou o bundle**: 880 KB → 4.451 KB (gzip 293 KB → 783 KB).
