@@ -8,15 +8,19 @@
  * seria abrir o kiosk para qualquer um do wi-fi. Este script abre um túnel SSH
  * sozinho, usa, e fecha.
  *
- * Uso:
+ * RODA NA MÁQUINA DE DEV, não no Pi. O script é que abre o ssh para lá -- rodá-lo
+ * no próprio Pi faria o túnel apontar para ele mesmo, e o navegador daqui não
+ * teria como alcançar.
+ *
+ * Uso (a partir da raiz do repo):
  *   node scripts/kiosk.cjs shot [arquivo.png]   captura a tela do kiosk
  *   node scripts/kiosk.cjs eval "<js>"          roda JS na página e imprime o retorno
  *   node scripts/kiosk.cjs console [segundos]   escuta o console (padrão: 10s)
  *   node scripts/kiosk.cjs reload               recarrega a página
  *   node scripts/kiosk.cjs info                 URL, título e tamanho da viewport
- *   node scripts/kiosk.cjs devtools            abre o túnel e imprime a URL do
- *                                              DevTools para colar no navegador
- *                                              (fica de pé até Ctrl+C)
+ *   node scripts/kiosk.cjs devtools             abre o túnel e imprime a URL do
+ *                                               DevTools para colar no navegador
+ *                                               (fica de pé até Ctrl+C)
  *
  *   ALEXO_HOST=pi@outro node scripts/kiosk.cjs shot
  */
@@ -234,7 +238,7 @@ async function comandoDevtools(cdp) {
   console.log(`Alternativa: edge://inspect/#devices, em "Discover network targets"`);
   console.log(`adicione 127.0.0.1:${PORTA}. O frontend será o do Edge, mais novo`);
   console.log(`que o Chrome 88 do Pi -- se algum painel vier vazio, use a URL acima.\n`);
-  console.log('Túnel aberto. Ctrl+C para fechar.');
+  console.log(`Túnel aberto para ${HOST}. Ctrl+C para fechar.`);
 
   // Segura o processo: fechar aqui derrubaria o túnel no meio do uso.
   await new Promise(() => {});
@@ -253,10 +257,18 @@ async function main() {
   const [comando, ...args] = process.argv.slice(2);
   const fn = COMANDOS[comando];
   if (!fn) {
-    console.error(require('module').wrap ? '' : '');
     console.error(`comando desconhecido: ${comando || '(nenhum)'}\n`);
-    console.error(fs.readFileSync(__filename, 'utf-8').split('*/')[0].split('\n').slice(1, -1)
-      .map((l) => l.replace(/^ \* ?/, '')).join('\n'));
+    // Imprime o bloco de doc do topo como ajuda, sem os delimitadores nem os
+    // asteriscos de margem.
+    const doc = fs.readFileSync(__filename, 'utf-8').split('*/')[0];
+    console.error(
+      doc
+        .split('\n')
+        .filter((l) => l.trim().startsWith('*'))
+        .map((l) => l.replace(/^\s*\* ?/, ''))
+        .join('\n')
+        .trim()
+    );
     process.exit(1);
   }
 
