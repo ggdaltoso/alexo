@@ -22,6 +22,40 @@ html, body, #root {
 }
 
 /*
+ * Letreiro: parado, rola até revelar o fim, volta, repete.
+ *
+ * As paradas são feitas repetindo o mesmo valor em duas paradas seguidas do
+ * keyframe -- entre 0% e 20% o transform não muda, então o texto fica imóvel.
+ * Com a duração total em 15s, esses 20% dão os 3 segundos de leitura antes de
+ * começar a andar.
+ *
+ * A distância (`--rolagem`) vem do JavaScript porque o CSS não consegue
+ * expressá-la: seria `-(largura do texto - largura da caixa)`, e as duas
+ * larguras têm bases de porcentagem diferentes. Ver components/Letreiro.tsx.
+ *
+ * `transform` de propósito: animar `left` ou `margin-left` forçaria recálculo de
+ * layout a cada quadro, o que no Pi Zero engasga.
+ */
+.alexo-letreiro {
+  display: inline-block;
+  animation: alexo-letreiro 15s ease-in-out infinite;
+}
+
+@keyframes alexo-letreiro {
+  0%,
+  20% {
+    transform: translateX(0);
+  }
+  70%,
+  85% {
+    transform: translateX(var(--rolagem, 0));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/*
  * Escurecimento da tela.
  *
  * Workaround: o display deste Pi não tem controle de brilho, e no escuro ele

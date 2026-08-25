@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Frame } from '@react95/core/Frame';
-import { TitleBar } from '@react95/core/TitleBar';
 import { Range } from '@react95/core/Range';
-import { Mmsys120 } from '@react95/icons';
 import { useApp } from '../contexts';
+import { Letreiro } from './Letreiro';
 
 /**
  * Painel do player, fixo abaixo da Galeria.
@@ -61,13 +60,15 @@ export function MusicPlayer() {
 
   // Visível tocando, e por mais um minuto depois de parar.
   const visivel = temFaixa && (tocando || agora - paradoEm < JANELA_APOS_PARAR_MS);
+
   if (!visivel) return null;
 
   // Interpolação local: o backend manda {position, positionAt} nas transições e
   // o resto do tempo o relógio daqui completa. É o que evita um broadcast por
   // segundo para todos os clientes.
   const posicao =
-    musicPlayback!.position + (tocando ? (agora - musicPlayback!.positionAt) / 1000 : 0);
+    musicPlayback!.position +
+    (tocando ? (agora - musicPlayback!.positionAt) / 1000 : 0);
 
   const duracao = musicPlayback?.duration ?? null;
   // Enquanto o mpv não carregou a faixa, `duration` é nula: max=0 deixa o cursor
@@ -81,13 +82,6 @@ export function MusicPlayer() {
       p="$1"
       boxShadow="$out"
     >
-      <TitleBar title="Música" icon={<Mmsys120 variant="16x16_4" />} />
-
-      {/*
-        Os tokens de espaçamento do React95 são pixels literais, não uma escala:
-        $3 = 3px, $10 = 10px. O pb maior é só para o cursor do Range não encostar
-        na borda de baixo do painel.
-      */}
       <Frame
         className="flex flex-col gap-1 overflow-hidden"
         p="$3"
@@ -95,15 +89,23 @@ export function MusicPlayer() {
         pb="$10"
         bgColor="$material"
       >
-        <span className="truncate">
-          {tocando ? '▶' : '‖'} {musicPlayback!.title}
-        </span>
-        <span className="truncate opacity-60 text-[0.7em]">
-          {musicPlayback!.album}
-          {musicPlayback!.trackCount > 0 &&
-            ` · ${musicPlayback!.trackIndex + 1}/${musicPlayback!.trackCount}`}
-        </span>
-        <div className="flex items-center gap-2">
+        <Frame
+          bgColor="black"
+          boxShadow="$in"
+          className="overflow-hidden"
+          px="$4"
+          color="$materialTextInvert"
+        >
+          <Letreiro
+            texto={
+              `${musicPlayback!.album} - ${musicPlayback!.title}` +
+              (musicPlayback!.trackCount > 0
+                ? ` · ${musicPlayback!.trackIndex + 1}/${musicPlayback!.trackCount}`
+                : '')
+            }
+          />
+        </Frame>
+        <div className="flex items-center gap-1">
           {/*
             Inerte de propósito: o painel mostra, não comanda. `disabled`
             deixaria o cursor cinza e sugeriria "quebrado", então o que desliga a
@@ -121,7 +123,7 @@ export function MusicPlayer() {
             tabIndex={-1}
             aria-hidden
           />
-          <span className="text-[0.7em] whitespace-nowrap opacity-60">
+          <span className="text-[1em] whitespace-nowrap">
             {/* duration é nula até o mpv carregar a faixa: mostrar --:-- é mais
                 honesto que 00:00, que parece uma faixa de duração zero */}
             {mmss(posicao)} / {duracao ? mmss(duracao) : '--:--'}
