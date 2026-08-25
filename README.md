@@ -338,11 +338,28 @@ message to the screen. The two NFC paths are deliberately independent.
 
 ### Admin pages
 
+Server-rendered, no build step, no auth — they are meant for a device on your own network.
+
 | Page | Purpose |
 |---|---|
 | `/admin` | Dashboard: content counts, reader state, what is playing |
 | `/admin/music` | Tag → album mapping, player controls, catalogue re-import |
 | `/admin/gallery` | Photo upload and ordering |
+
+| Dashboard | Gallery |
+|:---:|:---:|
+| ![Admin dashboard](screens/admin.png) | ![Admin gallery](screens/admin-gallery.png) |
+
+| Music — tag mapping | Music — player |
+|:---:|:---:|
+| ![Admin music](screens/admin-music.png) | ![Admin music player](screens/admin-music-player.png) |
+
+The dashboard polls the reader and the player every two seconds, so "Tag encostada" and "Tocando
+agora" reflect the device live. On the music page, holding a tag on the reader fills in the UID
+field for you — the UID comes from the same code path the player uses, so the two cannot disagree.
+
+> Gallery photos are blurred in this screenshot; they are personal pictures, not part of the
+> project.
 
 ### WebSocket
 
