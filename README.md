@@ -535,6 +535,34 @@ free -m                           # swap full = trouble ahead
 > `pkill -f <pattern>` matches the command line of the shell running it. Over ssh it kills your own
 > session and returns a confusing error. Kill by PID instead.
 
+## Roadmap / known issues
+
+Things that are broken, unfinished, or waiting on hardware.
+
+**Todoist screen stopped working.** The integration is still wired up and the route exists, but the
+screen no longer renders tasks. Not yet diagnosed — likely the API token or a change on Todoist's
+side. It is out of the carousel rotation, so nothing else is affected.
+
+**Albums still contain jingles.** Game soundtracks are full of 2–10 second cues (title logos, game
+over, item pickups) that make little sense inside an album played by tag.
+`backend/scripts/music-durations.py` reads MP3 durations to separate them; it has been written but
+never run. Removing them from the catalogue alone is not enough — the importer rescans the disk and
+would bring them back, so either the files move out of `uploads/music/` or the importer learns a
+minimum duration.
+
+**Audio distorts above volume ~60.** Undervoltage is ruled out. The remaining suspect is the
+MAX98357A's fixed analog gain — see *Audio* above. The fix is a jumper on the `GAIN` pin, not code.
+
+**Wi-Fi stability needs a long observation.** The photo fix stopped the drops in every measurement
+taken so far, but the longest clean run was minutes, and the failure used to appear every few
+hours. `wifi-monitor.service` is recording into the journal; the question is whether a week goes by
+without a `?` in the signal column.
+
+**NFC polling still bit-bangs I2C.** Scanning the PN532 measurably degrades Wi-Fi throughput
+(6.5 vs 52 Mbps in paired measurements). Slowing the scan did not fix it. The real fix is to use the
+PN532's IRQ line instead of polling, which depends on that pin being reachable on the soldered
+module.
+
 ## License
 
 MIT.
