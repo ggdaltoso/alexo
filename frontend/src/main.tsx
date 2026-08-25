@@ -36,12 +36,21 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       */}
       <BrowserRouter>
         <AppProvider>
+          {/*
+            flex-1, e não w-1/2: duas metades MAIS o gap dão 100% + 16px, e a
+            coluna da direita passava por cima do padding direito do body. Com
+            flex-1 as colunas dividem o que sobra depois do gap.
+
+            min-w-0 é obrigatório junto: sem ele um filho de flex não encolhe
+            abaixo do tamanho do próprio conteúdo, e o overflow volta pela
+            primeira imagem larga da galeria.
+          */}
           <div className="flex w-full h-full gap-2">
-            <div className="w-1/2 h-full shrink-0 flex flex-col gap-2 overflow-hidden">
+            <div className="flex-1 min-w-0 h-full flex flex-col gap-2 overflow-hidden">
               <Galeria />
               <MusicPlayer />
             </div>
-            <div className="w-1/2 h-full shrink-0 overflow-hidden">
+            <div className="flex-1 min-w-0 h-full overflow-hidden">
               <App />
             </div>
           </div>
