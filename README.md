@@ -20,17 +20,26 @@ https://github.com/user-attachments/assets/89a0e55d-b3e0-4089-ac47-a3ae647a1f58
 
 ## Screens
 
-| Clock | Weather Forecast |
-|:---:|:---:|
-| ![Clock Screen](screens/clock.png) | ![Forecast Screen](screens/forecast.png) |
+The screen is split in two: the photo gallery on the left, the rotating screens on the right.
 
-| Exchange Rate | NFC Message |
+| Weather Forecast | Exchange Rate |
 |:---:|:---:|
-| ![Exchange Rate Screen](screens/exchange-rate.png) | ![NFC Message Screen](screens/nfc-message.png) |
+| ![Forecast](screens/forecast.png) | ![Exchange Rate](screens/exchange-rate.png) |
 
-| Todoist |
-|:---:|
-| ![Todoist Screen](screens/todoist.png) |
+When music is playing, a player panel takes the bottom of the left column and the gallery shrinks
+to make room. It disappears a minute after the music stops, and the gallery grows back. The title
+scrolls because an album name plus a track name never fits 240 pixels.
+
+| Now playing | Another album |
+|:---:|:---:|
+| ![Music Player](screens/music-player.png) | ![Music Player](screens/music-player-exchange.png) |
+
+| Clock | NFC Message | Todoist |
+|:---:|:---:|:---:|
+| ![Clock](screens/clock.png) | ![NFC Message](screens/nfc-message.png) | ![Todoist](screens/todoist.png) |
+
+> The clock, message and Todoist shots predate the two-column layout and show the old full-width
+> screens.
 
 ## The music player
 
