@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { API_CONFIG } from '../config/api';
 import { Frame } from '@react95/core/Frame';
 import { TitleBar } from '@react95/core/TitleBar';
-import { Wangimg128 } from '@react95/icons';
+import { Wangimg128 } from '@react95/icons/Wangimg128';
 
 interface GalleryItem {
   id: string;

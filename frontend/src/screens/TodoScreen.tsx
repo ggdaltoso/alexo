@@ -1,6 +1,8 @@
 import { useTodoist } from '../hooks/useTodoist';
 import { Frame, TitleBar, Fieldset, Checkbox } from '@react95/core';
-import { Faxcover108, FilePen, Joy108 } from '@react95/icons';
+import { Faxcover108 } from '@react95/icons/Faxcover108';
+import { FilePen } from '@react95/icons/FilePen';
+import { Joy108 } from '@react95/icons/Joy108';
 import { Loader } from 'lucide-react';
 
 export function TodoScreen() {

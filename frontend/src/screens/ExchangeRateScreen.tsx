@@ -1,6 +1,9 @@
 import * as React from 'react';
 import { Frame } from '@react95/core';
-import { Printer, Progman24, Mailnews17, Mailnews18 } from '@react95/icons';
+import { Printer } from '@react95/icons/Printer';
+import { Progman24 } from '@react95/icons/Progman24';
+import { Mailnews17 } from '@react95/icons/Mailnews17';
+import { Mailnews18 } from '@react95/icons/Mailnews18';
 import { useExchangeRate } from '../hooks/useExchangeRate';
 import type { ExchangeRate } from '../types';
 

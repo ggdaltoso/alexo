@@ -693,6 +693,28 @@ chegaram a rodar por causa disso, e o silêncio deles foi lido como "não detect
 armadilha do `-f` já estava documentada neste plano para o `mpv` e ainda assim se repetiu — ver
 a seção de armadilhas.
 
+#### `@react95/icons`: importar ícone a ícone, nunca do barril
+
+Atualizar de 2.2.0 para 2.5.3 **quintuplicou o bundle**: 880 KB → 4.451 KB (gzip 293 KB → 783 KB).
+O core 9.8.3 não tinha culpa — o mesmo core com ícones 2.2.0 dava 880 KB.
+
+Causa: nenhuma das duas versões declara `sideEffects: false`, e no barril da 2.5.3 o
+tree-shaking deixa de funcionar; o acervo inteiro de ícones entra no bundle mesmo usando 13.
+
+Solução, sem abrir mão da versão nova — a 2.5.3 expõe subcaminhos (`"./*"` no `exports`):
+
+```ts
+import { Wangimg128 } from '@react95/icons/Wangimg128';   // 880 KB
+import { Wangimg128 } from '@react95/icons';              // 4.451 KB
+```
+
+**Não reunir os imports de volta num só.** Parece arrumação e custa 3,5 MB num aparelho que
+carrega a página por Wi-Fi a cada reinício do kiosk.
+
+Vale conferir o tamanho no fim do build ao mexer em dependência de UI: os dois upgrades passaram
+por typecheck e build sem um aviso sequer, e o problema só apareceu quando estranhei o tamanho
+do arquivo no Pi.
+
 #### Inspeção remota do kiosk: tentada e removida (24/08/2026)
 
 Chegou a funcionar: `--remote-debugging-port=9222` no Chromium do Pi, túnel SSH, e um
