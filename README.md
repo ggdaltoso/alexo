@@ -258,35 +258,51 @@ npm run deploy:no-restart                             # services do not exist ye
 
 Then install the systemd units.
 
-### Reaching the Pi by name (may not work on your network)
+### Reaching the Pi by name
 
-In principle `http://<hostname>.local:3001/admin` should work from any machine on the same
-network. On the Pi, mDNS publishing is enabled with:
+`http://<hostname>.local:3001/admin` and `ssh pi@<hostname>.local` work from any machine on the
+same network, provided mDNS publishing is on:
 
 ```bash
 sudo sed -i 's/^publish-workstation=no/publish-workstation=yes/' /etc/avahi/avahi-daemon.conf
 sudo systemctl restart avahi-daemon
 ```
 
-**It does not work reliably here, and the Pi is not at fault.** A unicast mDNS query straight at
-the device answers correctly:
+> `.local` is link-local by design. Same network segment only — it is not a way in from outside
+> the LAN.
+
+**If the name does not resolve, suspect the network before the Pi.** On this setup the same device
+resolved on one SSID of a mesh and not on another, both on the same subnet: one of them drops
+multicast between clients. The device itself was answering correctly the whole time, which you can
+prove with a unicast query straight at it:
 
 ```bash
-dig +short -p 5353 @<pi-ip> alexo.local A     # returns the address
+dig +short -p 5353 @<pi-ip> <hostname>.local A     # answers even when .local fails
 ```
 
-So the daemon publishes and answers; what does not arrive is the multicast query. Cause not
-established. The one difference found against a second Pi on the same subnet that *does* resolve
-is the SSID — the two are on different networks of the same mesh, both Wi-Fi only, same
-`192.168.0.0/24`.
+Two things make this confusing to diagnose:
 
-The symptom is deceptive: restarting `avahi-daemon` makes the name resolve for a couple of
-minutes, because startup sends unsolicited announcements that populate the client's cache. Once
-that cache expires, resolution depends on query-and-response over multicast and stops working. It
-looks like an intermittent bug, and it is not.
+- Restarting `avahi-daemon` makes the name resolve **for a couple of minutes**, because startup
+  sends unsolicited announcements that populate the client cache. Once it expires, resolution needs
+  query-and-response over multicast and stops. It looks intermittent, and it is not. Always
+  re-test after the cache expires before concluding anything.
+- An interface showing as `UP` says nothing about a cable being connected. Check
+  `/sys/class/net/eth0/carrier` instead.
 
-If the name matters more than the convenience of not installing anything, Tailscale gives a stable
-name that does not depend on multicast. Otherwise, use the IP.
+### Adding a Wi-Fi network
+
+Networks live in `/etc/wpa_supplicant/wpa_supplicant.conf`. Store the PSK as a hash rather than
+the plaintext passphrase:
+
+```bash
+wpa_passphrase "SSID" | sudo tee -a /etc/wpa_supplicant/wpa_supplicant.conf   # type the password, then strip the #psk= comment line
+sudo wpa_cli -i wlan0 reconfigure
+```
+
+> **A wrong hash fails silently.** The hash is derived from passphrase *and* SSID, so a typo in
+> either produces a block that never associates, with no useful error — the interface just ends up
+> with a `169.254.x.x` self-assigned address. Verify the connection before adding `priority=`, or
+> a device that prefers a network it cannot join becomes unreachable.
 
 If you change the hostname later, Chromium will warn that the profile is in use by another
 computer: its lock file embeds the old host name. Clear it once:
