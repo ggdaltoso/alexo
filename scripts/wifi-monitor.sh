@@ -34,13 +34,24 @@ INTERVALO=${INTERVALO:-15}
 GATEWAY=$(ip route | awk '/^default/ {print $3; exit}')
 
 echo "# iniciado $(date '+%F %T')  gateway=$GATEWAY  intervalo=${INTERVALO}s"
-echo "# horario  sinal_dBm  qualidade  bitrate_Mbps  ping_ms  carga  temp_C  servicos_ativos"
+echo "# horario  ssid  sinal_dBm  qualidade  bitrate_Mbps  ping_ms  carga  temp_C  bssid  servicos_ativos"
 
 while true; do
   linha=$(iwconfig wlan0 2>/dev/null)
   sinal=$(echo "$linha" | grep -oP 'Signal level=\K-?[0-9]+' || echo "?")
   qual=$(echo "$linha" | grep -oP 'Link Quality=\K[0-9]+/[0-9]+' || echo "?")
   taxa=$(echo "$linha" | grep -oP 'Bit Rate=\K[0-9.]+' || echo "?")
+
+  # BSSID identifica em QUAL ponto de acesso ele esta. Numa rede mesh isso e o
+  # que distingue "o rádio caiu" de "ele trocou de nó e o novo nó nao passa
+  # trafego" -- em 26/08/2026 o sinal sozinho nao permitiu decidir entre as duas.
+  bssid=$(echo "$linha" | grep -oP 'Access Point: \K[0-9A-Fa-f:]+' || echo "?")
+
+  # SSID junto do BSSID porque o wpa_supplicant nao registra associacao no
+  # journal deste sistema: sem isto, nao ha como saber em que rede ele estava
+  # numa janela passada -- lacuna que impediu de responder se a instabilidade
+  # mudou ao trocar de rede em 26/08/2026.
+  ssid=$(echo "$linha" | grep -oP 'ESSID:"\K[^"]*' || echo "?")
 
   # -W 2: falhar rápido. Uma amostra que demora 10s desalinha a série temporal.
   ping_ms=$(ping -c 1 -W 2 "$GATEWAY" 2>/dev/null | grep -oP 'time=\K[0-9.]+' || echo "SEM_RESPOSTA")
@@ -60,8 +71,8 @@ while true; do
   # Sinal como '?' significa que o iwconfig não reportou nada -- interface
   # desassociada. É a assinatura da queda de verdade, diferente de ping lento
   # por Pi ocupado.
-  printf '%s  %-4s  %-6s  %-5s  %-12s  %-5s  %-5s  %s\n' \
-    "$(date '+%H:%M:%S')" "$sinal" "$qual" "$taxa" "$ping_ms" "$carga" "$temp" "$ativos"
+  printf '%s  %-10.10s  %-4s  %-6s  %-5s  %-12s  %-5s  %-5s  %-17s  %s\n' \
+    "$(date '+%H:%M:%S')" "$ssid" "$sinal" "$qual" "$taxa" "$ping_ms" "$carga" "$temp" "$bssid" "$ativos"
 
   sleep "$INTERVALO"
 done
