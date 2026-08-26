@@ -258,23 +258,34 @@ npm run deploy:no-restart                             # services do not exist ye
 
 Then install the systemd units.
 
-### Reaching the Pi by name
+### Reaching the Pi by name (may not work on your network)
 
-So you do not have to chase the IP after a DHCP change, enable mDNS publishing on the Pi:
+In principle `http://<hostname>.local:3001/admin` should work from any machine on the same
+network. On the Pi, mDNS publishing is enabled with:
 
 ```bash
 sudo sed -i 's/^publish-workstation=no/publish-workstation=yes/' /etc/avahi/avahi-daemon.conf
 sudo systemctl restart avahi-daemon
 ```
 
-After that, `http://<hostname>.local:3001/admin` works from any machine on the same network.
+**It does not work reliably here, and the Pi is not at fault.** A unicast mDNS query straight at
+the device answers correctly:
 
-The option name is misleading: it reads as if it only controlled the `_workstation._tcp` service
-record, but with it left at the Debian default of `no` the host name did not resolve at all. Found
-by diffing against another Pi on the same network where it did work.
+```bash
+dig +short -p 5353 @<pi-ip> alexo.local A     # returns the address
+```
 
-> `.local` is link-local by design. It works on the same network segment and nowhere else — it is
-> not a way to reach the device from outside your LAN.
+What fails is multicast crossing from the wireless segment to the wired one. A second Pi on the
+same network resolves fine — and it has an ethernet cable. Mesh routers commonly limit multicast
+between clients.
+
+The symptom is deceptive: restarting `avahi-daemon` makes the name resolve for a couple of
+minutes, because startup sends unsolicited announcements that populate the client's cache. Once
+that cache expires, resolution depends on query-and-response over multicast and stops working. It
+looks like an intermittent bug, and it is not.
+
+If the name matters more than the convenience of not installing anything, Tailscale gives a stable
+name that does not depend on multicast. Otherwise, use the IP.
 
 If you change the hostname later, Chromium will warn that the profile is in use by another
 computer: its lock file embeds the old host name. Clear it once:
