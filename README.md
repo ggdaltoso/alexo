@@ -275,9 +275,10 @@ the device answers correctly:
 dig +short -p 5353 @<pi-ip> alexo.local A     # returns the address
 ```
 
-What fails is multicast crossing from the wireless segment to the wired one. A second Pi on the
-same network resolves fine — and it has an ethernet cable. Mesh routers commonly limit multicast
-between clients.
+So the daemon publishes and answers; what does not arrive is the multicast query. Cause not
+established. The one difference found against a second Pi on the same subnet that *does* resolve
+is the SSID — the two are on different networks of the same mesh, both Wi-Fi only, same
+`192.168.0.0/24`.
 
 The symptom is deceptive: restarting `avahi-daemon` makes the name resolve for a couple of
 minutes, because startup sends unsolicited announcements that populate the client's cache. Once
