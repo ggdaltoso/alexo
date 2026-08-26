@@ -520,13 +520,22 @@ so the answer is unambiguous.
 
 ## Bench tools
 
-`backend/scripts/`, all dependency-free:
+`backend/scripts/`, all dependency-free.
+
+Start here — this is the one to reach for when something looks wrong with the reader:
+
+```bash
+python3 backend/scripts/nfc-read-uid.py     # hold a tag, it prints the UID
+```
+
+If it prints, the hardware and the whole NFC path are fine and the problem is elsewhere.
 
 | Tool | Purpose |
 |---|---|
-| `pn532-i2c-probe.py` | Full NFC diagnostic. The reference implementation of the protocol |
-| `nfc-read-uid.py` | Prints UIDs only — for registering a new tag |
+| `nfc-read-uid.py` | Prints UIDs only. Also how you find the UID of a new tag |
 | `nfc-signal.py` | Live signal bar — for positioning the module |
+| `nfc-dropout-test.py` | Measures how often a stationary tag is missed |
+| `pn532-i2c-probe.py` | Full NFC diagnostic. The reference implementation of the protocol |
 | `nfc-player-sim.py` | Simulates the player behaviour with no audio |
 | `nfc-reader-test.js` | Exercises `nfcReader.js` itself |
 | `nfc-node-vs-python.sh` | Runs both readers on the same tag, same session |
