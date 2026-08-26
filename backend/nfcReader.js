@@ -11,9 +11,11 @@
  * O UID vem normalizado em hex maiúsculo sem separadores ("693B9D29"), que é a
  * forma usada como chave em data/nfc-tags.json.
  *
- * Só lê UID. Não escreve em tag e não lê memória de tag -- decisão registrada em
- * docs/nfc-music-player-plan.md: o mapeamento UID->álbum mora no JSON e ponto,
- * porque gravar na tag criaria uma segunda cópia do mesmo fato.
+ * Só lê UID. Não escreve em tag e não lê memória de tag, embora o PN532 saiba
+ * escrever. O motivo: como o leitor precisa cair pra trás no UID quando a tag
+ * vier ilegível, o mapeamento em data/nfc-tags.json existe de qualquer jeito --
+ * gravar na tag criaria uma segunda cópia do mesmo fato, com as duas podendo
+ * divergir e nenhuma regra de qual vence.
  */
 const EventEmitter = require('events');
 

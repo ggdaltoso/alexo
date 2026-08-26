@@ -168,8 +168,8 @@ function getTracksByAlbum(album) {
 
 // Mapeamento tag -> álbum
 //
-// A chave é o nome do álbum (= nome da pasta), não um trackId. Ver a decisão de
-// escopo no plano: a tag representa o álbum inteiro.
+// A chave é o nome do álbum (= nome da pasta), não um trackId: a tag representa
+// o álbum inteiro, não uma faixa. É o que dá alvo real para anterior/próxima.
 
 function readTagMappings() {
   try {

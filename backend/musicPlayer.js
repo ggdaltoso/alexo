@@ -27,9 +27,13 @@ const SOCKET_PATH = process.env.MPV_SOCKET || '/tmp/alexo-mpv.sock';
 const AUDIO_DEVICE = process.env.MPV_AUDIO_DEVICE || 'alsa/hw:0,0';
 const MUSIC_DIR = path.join(__dirname, 'uploads', 'music');
 
-// 100 foi escolhido de ouvido no hardware real, não chutado: o speaker do
-// projeto é ineficiente e volume audível importou mais que fidelidade. Ver a
-// seção de áudio no plano, incluindo a pendência de distorção em volume alto.
+// 100 foi escolhido de ouvido no hardware real, não chutado: o speaker do projeto
+// é ineficiente e volume audível importou mais que fidelidade.
+//
+// Acima de ~60 o som distorce. Subtensão foi descartada (`vcgencmd get_throttled`
+// devolve 0x0); a suspeita é o ganho analógico fixo do MAX98357A, que aplica 9dB
+// com o pino GAIN flutuando. Não incomoda no uso real, e a correção seria um
+// jumper no GAIN, não código.
 const DEFAULT_VOLUME = 100;
 
 // O mpv leva ~11s para abrir o socket neste Pi. O timeout precisa de folga, e o
