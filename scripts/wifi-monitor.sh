@@ -8,6 +8,11 @@
 # Também pinga o gateway a cada amostra -- é o que distingue "sinal fraco" de
 # "rádio parou de responder", que é o sintoma que estamos investigando.
 #
+# A temperatura entra na mesma série de propósito: o Pi chegou a 70,8 °C com
+# tudo rodando, e chip de rádio degrada com calor. Ter as duas colunas lado a
+# lado responde se elas sobem juntas ou são independentes -- sem isso, é
+# especulação.
+#
 # Escreve em stdout, não em arquivo. Rodando como serviço, quem guarda é o
 # journald -- que já está persistente e com teto de 50 MB, então não é preciso
 # inventar rotação de log. Um arquivo em /tmp, como era antes, some no reboot,
@@ -29,7 +34,7 @@ INTERVALO=${INTERVALO:-15}
 GATEWAY=$(ip route | awk '/^default/ {print $3; exit}')
 
 echo "# iniciado $(date '+%F %T')  gateway=$GATEWAY  intervalo=${INTERVALO}s"
-echo "# horario  sinal_dBm  qualidade  bitrate_Mbps  ping_ms  carga  servicos_ativos"
+echo "# horario  sinal_dBm  qualidade  bitrate_Mbps  ping_ms  carga  temp_C  servicos_ativos"
 
 while true; do
   linha=$(iwconfig wlan0 2>/dev/null)
@@ -42,6 +47,10 @@ while true; do
 
   carga=$(cut -d' ' -f1 /proc/loadavg)
 
+  # Pelo sysfs, não pelo vcgencmd: é um read de arquivo em vez de um processo
+  # novo a cada 15s, e o valor vem em milésimos de grau.
+  temp=$(awk '{printf "%.1f", $1/1000}' /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo "?")
+
   ativos=""
   for s in alexo-mpv alexo alexo-display; do
     [ "$(systemctl is-active $s.service 2>/dev/null)" = "active" ] && ativos="$ativos$s "
@@ -51,8 +60,8 @@ while true; do
   # Sinal como '?' significa que o iwconfig não reportou nada -- interface
   # desassociada. É a assinatura da queda de verdade, diferente de ping lento
   # por Pi ocupado.
-  printf '%s  %-4s  %-6s  %-5s  %-12s  %-5s  %s\n' \
-    "$(date '+%H:%M:%S')" "$sinal" "$qual" "$taxa" "$ping_ms" "$carga" "$ativos"
+  printf '%s  %-4s  %-6s  %-5s  %-12s  %-5s  %-5s  %s\n' \
+    "$(date '+%H:%M:%S')" "$sinal" "$qual" "$taxa" "$ping_ms" "$carga" "$temp" "$ativos"
 
   sleep "$INTERVALO"
 done

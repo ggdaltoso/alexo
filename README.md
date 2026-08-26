@@ -258,6 +258,33 @@ npm run deploy:no-restart                             # services do not exist ye
 
 Then install the systemd units.
 
+### Reaching the Pi by name
+
+So you do not have to chase the IP after a DHCP change, enable mDNS publishing on the Pi:
+
+```bash
+sudo sed -i 's/^publish-workstation=no/publish-workstation=yes/' /etc/avahi/avahi-daemon.conf
+sudo systemctl restart avahi-daemon
+```
+
+After that, `http://<hostname>.local:3001/admin` works from any machine on the same network.
+
+The option name is misleading: it reads as if it only controlled the `_workstation._tcp` service
+record, but with it left at the Debian default of `no` the host name did not resolve at all. Found
+by diffing against another Pi on the same network where it did work.
+
+> `.local` is link-local by design. It works on the same network segment and nowhere else — it is
+> not a way to reach the device from outside your LAN.
+
+If you change the hostname later, Chromium will warn that the profile is in use by another
+computer: its lock file embeds the old host name. Clear it once:
+
+```bash
+sudo systemctl stop alexo-display
+rm -f ~/.config/chromium/Singleton{Lock,Cookie,Socket}
+sudo systemctl start alexo-display
+```
+
 ### Systemd units
 
 The units live in **`deploy/systemd/`** and are versioned. They used to exist only on the Pi and
