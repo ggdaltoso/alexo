@@ -4,8 +4,6 @@ Alexo is a Windows 95-themed dashboard that runs on a 3.5" screen driven by a Ra
 It shows weather, forecasts, exchange rates and tasks — and plays music when you place an NFC tag
 on it, Tonie/Yoto style.
 
-https://github.com/user-attachments/assets/89a0e55d-b3e0-4089-ac47-a3ae647a1f58
-
 ## Features
 
 - **NFC music player** — tap a tag, the mapped album plays; lift it, the music pauses; put the
@@ -485,11 +483,6 @@ mpv is driven over its JSON IPC socket by a hand-written client rather than a li
 protocol is one line of JSON per command and the usual wrapper's connection timeout does not cover
 this hardware's ~11s startup.
 
-**Known issue:** audio distorts above roughly volume 60. Undervoltage is ruled out
-(`vcgencmd get_throttled` returns `0x0`). The remaining suspect is the MAX98357A's fixed analog
-gain — with `GAIN` floating it applies 9 dB, and game soundtracks are mastered hot. The fix is a
-jumper, not code: `GAIN` to `VIN` for 6 dB and less volume, or a more efficient speaker.
-
 ## Troubleshooting
 
 ### Wi-Fi drops
@@ -590,33 +583,20 @@ free -m                           # swap full = trouble ahead
 > `pkill -f <pattern>` matches the command line of the shell running it. Over ssh it kills your own
 > session and returns a confusing error. Kill by PID instead.
 
-## Roadmap / known issues
-
-Things that are broken, unfinished, or waiting on hardware.
+## Roadmap
 
 **Todoist screen stopped working.** The integration is still wired up and the route exists, but the
 screen no longer renders tasks. Not yet diagnosed — likely the API token or a change on Todoist's
 side. It is out of the carousel rotation, so nothing else is affected.
 
-**Albums still contain jingles.** Game soundtracks are full of 2–10 second cues (title logos, game
-over, item pickups) that make little sense inside an album played by tag.
-`backend/scripts/music-durations.py` reads MP3 durations to separate them; it has been written but
-never run. Removing them from the catalogue alone is not enough — the importer rescans the disk and
-would bring them back, so either the files move out of `uploads/music/` or the importer learns a
-minimum duration.
+**Manage music from the admin.** Albums currently reach the device by `scp` into
+`backend/uploads/music/`, followed by `node backend/scripts/import-music.js` over ssh. The gallery
+already accepts uploads through the web admin; music should work the same way — upload a folder of
+MP3s, see what is there, delete an album, without touching a terminal.
 
-**Audio distorts above volume ~60.** Undervoltage is ruled out. The remaining suspect is the
-MAX98357A's fixed analog gain — see *Audio* above. The fix is a jumper on the `GAIN` pin, not code.
-
-**Wi-Fi stability needs a long observation.** The photo fix stopped the drops in every measurement
-taken so far, but the longest clean run was minutes, and the failure used to appear every few
-hours. `wifi-monitor.service` is recording into the journal; the question is whether a week goes by
-without a `?` in the signal column.
-
-**NFC polling still bit-bangs I2C.** Scanning the PN532 measurably degrades Wi-Fi throughput
-(6.5 vs 52 Mbps in paired measurements). Slowing the scan did not fix it. The real fix is to use the
-PN532's IRQ line instead of polling, which depends on that pin being reachable on the soldered
-module.
+Worth carrying over from the gallery: uploads are downscaled before being registered, so a large
+file never reaches the device as-is. Audio has an equivalent concern — 404 tracks are already
+899 MB, and an SD card fills up quietly.
 
 ## License
 
