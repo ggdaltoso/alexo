@@ -176,9 +176,16 @@ async function reconectar() {
       atual = { album: null, tracks: [], volume: atual.volume };
       available = true;
       console.log(`[music] reconectado ao mpv após ${tentativa} tentativa(s)`);
+      // Solta a trava ANTES dos awaits abaixo. Se a conexão recém-aberta morrer
+      // durante eles, o handler de 'close' chama reconectar() de novo -- e com
+      // a trava ainda presa ele retornaria sem fazer nada, deixando o player
+      // morto até alguém reiniciar o backend. Acontece de verdade num
+      // `systemctl restart alexo-mpv`: o socket do mpv que está morrendo ainda
+      // aceita a conexão e só depois dá EPIPE. Visto em 27/08/2026.
+      reconectando = false;
       await ipc.command('set_property', 'volume', atual.volume).catch(() => {});
       emitStatus().catch(() => {});
-      break;
+      return;
     } catch (err) {
       // Só a primeira e depois de 10 em 10: o mpv leva ~11s para subir e o
       // RestartSec soma mais alguns, então um punhado de falhas é o normal.

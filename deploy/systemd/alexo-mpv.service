@@ -21,7 +21,14 @@ User=pi
 # O mpv não consegue fazer bind num socket que já existe, e um encerramento
 # abrupto deixa o arquivo para trás.
 ExecStartPre=/bin/rm -f /tmp/alexo-mpv.sock
-ExecStart=/usr/bin/mpv --idle=yes --no-video --audio-device=alsa/hw:0,0 --volume=100 --input-ipc-server=/tmp/alexo-mpv.sock
+# --quiet suprime a linha de status do mpv. Num terminal ela se reescreve com
+# \r; sob systemd, cada atualizacao vira um registro novo no journal -- 13 por
+# segundo. Em 27/08/2026, 13 minutos de musica geraram 10.096 linhas, 78% de
+# tudo que o sistema registrou naquele dia, e o journal passou do teto de 50 MB.
+# Cada linha dessas e uma escrita no cartao SD, no mesmo controlador SDIO que o
+# radio Wi-Fi usa -- o mesmo mecanismo das fotos da galeria, por outro caminho.
+# Avisos e erros continuam sendo registrados.
+ExecStart=/usr/bin/mpv --idle=yes --no-video --quiet --audio-device=alsa/hw:0,0 --volume=100 --input-ipc-server=/tmp/alexo-mpv.sock
 Restart=always
 RestartSec=5
 
