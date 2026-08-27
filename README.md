@@ -488,6 +488,22 @@ this hardware's ~11s startup.
 ### Wi-Fi drops
 
 ```bash
+npm run wifi                       # summary of the current boot, read over ssh
+npm run wifi -- --desde '-6h'      # a specific window
+npm run wifi -- --local            # when you are already on the Pi
+```
+
+It reports ping failures, disassociations, the SSIDs and BSSIDs seen, latency and temperature
+stats, and a timeline of every roam, network change and service change.
+
+Do not parse the log by column index. The SSID contains a space (`GAMA Deco`) and the last column
+lists a variable number of services, so counting fields from either end silently reads the wrong
+column — an `awk` that did this once reported 60 ms of average latency by reading the temperature.
+`scripts/wifi-resumo.sh` matches the whole line at once, anchored on the BSSID's fixed-width MAC.
+
+The raw log is still there when you want it:
+
+```bash
 journalctl -u wifi-monitor --since '-6h' | grep ' ?  '     # real disconnects
 journalctl -u wifi-monitor --since '-6h' | grep SEM_RESPOSTA
 ```
@@ -545,7 +561,8 @@ If it prints, the hardware and the whole NFC path are fine and the problem is el
 | `resize-gallery.py` | Downscales gallery photos |
 
 `scripts/wifi-monitor.sh` samples Wi-Fi health; run it as `wifi-monitor.service` so the output
-lands in the journal and survives a reboot.
+lands in the journal and survives a reboot. `scripts/wifi-resumo.sh` (`npm run wifi`) turns that log
+into a summary — see [Wi-Fi drops](#wi-fi-drops).
 
 ## Project structure
 
@@ -570,7 +587,7 @@ alexo/
 │   ├── hooks/ services/ config/
 │   └── index.css            # global styles, marquee, screen dimming
 ├── deploy/systemd/          # versioned units
-├── scripts/                 # deploy.sh, wifi-monitor.sh
+├── scripts/                 # deploy.sh, wifi-monitor.sh, wifi-resumo.sh
 └── package.json
 ```
 
@@ -581,6 +598,7 @@ alexo/
 sudo systemctl restart alexo alexo-display
 journalctl -u alexo.service -f
 journalctl -u wifi-monitor -f
+npm run wifi                      # summarise the Wi-Fi log instead of reading it
 
 # hardware checks
 i2cdetect -y 3                    # NFC reader answers at 0x24

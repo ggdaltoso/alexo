@@ -14,7 +14,8 @@
     "deploy": "bash scripts/deploy.sh",
     "deploy:dry": "bash scripts/deploy.sh --dry-run",
     "deploy:fast": "bash scripts/deploy.sh --skip-build",
-    "deploy:no-restart": "bash scripts/deploy.sh --no-restart"
+    "deploy:no-restart": "bash scripts/deploy.sh --no-restart",
+    "wifi": "bash scripts/wifi-resumo.sh"
   },
   "dependencies": {
     "concurrently": "9.2.1"
