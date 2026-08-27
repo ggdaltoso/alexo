@@ -170,6 +170,7 @@ Backend-only variables, all optional:
 | `MPV_SOCKET` | `/tmp/alexo-mpv.sock` | mpv IPC socket |
 | `MPV_AUDIO_DEVICE` | `alsa/hw:0,0` | ALSA output |
 | `MPV_EXTERNAL` | unset | `1` = never spawn mpv, only wait for the socket |
+| `MPV_LIBERAR_AUDIO_MS` | `60000` | Idle time before releasing the audio device |
 
 #### Getting your Todoist API token
 
@@ -482,6 +483,25 @@ Express's error handler, and takes the whole process down.
 mpv is driven over its JSON IPC socket by a hand-written client rather than a library, because the
 protocol is one line of JSON per command and the usual wrapper's connection timeout does not cover
 this hardware's ~11s startup.
+
+**A paused player is released after a minute.** Pausing does not close `/dev/snd`: mpv holds the PCM
+open for as long as a track is loaded, and while it does, the MAX98357A stays out of shutdown and
+keeps dissipating. Measured on 2026-08-27: 19 minutes of music took the Pi from 60.5 °C to 64.3 °C,
+and after *pausing* the curve kept climbing for another 27 minutes to 70.8 °C, where it sat for
+hours. A forgotten paused player cost 13 °C.
+
+After `MPV_LIBERAR_AUDIO_MS` (default 60s) with nothing playing, the backend switches mpv's
+`audio-device` to `null`, which closes the ALSA device while leaving the playlist, track index and
+position untouched — so the reported status is identical and the UI sees no change. Anything that
+makes sound restores the device first. This is why the album is not reloaded: reloading would cost
+one `loadfile` per track (86 in the test album) exactly at the moment the tag comes back, which is
+the gesture that has to feel instant.
+
+The 60s default mirrors the window the frontend uses to hide the music panel: when the panel leaves
+the screen, the audio goes with it.
+
+A reused mpv is checked on startup and given its device back if a previous backend died with the
+audio released — otherwise the next track would play silently, with no error.
 
 ## Troubleshooting
 
