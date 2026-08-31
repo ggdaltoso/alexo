@@ -577,7 +577,6 @@ If it prints, the hardware and the whole NFC path are fine and the problem is el
 | `nfc-node-vs-python.sh` | Runs both readers on the same tag, same session |
 | `music-player-test.js` | Exercises `musicPlayer.js` with real audio |
 | `import-music.js` | Builds the music catalogue from disk |
-| `music-durations.py` | Reads MP3 durations — separates songs from short jingles |
 | `resize-gallery.py` | Downscales gallery photos |
 
 `scripts/wifi-monitor.sh` samples Wi-Fi health; run it as `wifi-monitor.service` so the output
