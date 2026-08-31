@@ -12,6 +12,7 @@ const { randomUUID } = require('./ids');
 const musicController = require('./musicController');
 const musicCatalog = require('./musicCatalog');
 const nfcReader = require('./nfcReader');
+const servicos = require('./servicos');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -253,6 +254,48 @@ app.post('/api/nfc-tag/simulate', async (req, res) => {
   }
 });
 
+app.get('/api/services', async (req, res) => {
+  try {
+    res.json(await servicos.listar());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Liga, desliga ou reinicia um serviço.
+ *
+ * A unidade nunca vem do pedido -- `chave` é procurada na tabela do
+ * servicos.js. Ver o comentário de lá sobre por que isso importa aqui.
+ */
+app.post('/api/services/:chave/:acao', async (req, res) => {
+  let plano;
+  try {
+    plano = servicos.executar(req.params.chave, req.params.acao);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  // Reiniciar o próprio backend faz o systemd mandar SIGTERM neste processo:
+  // se a gente esperasse o systemctl terminar, a resposta morreria junto e o
+  // admin veria um erro de rede num restart que deu certo. Responde primeiro,
+  // reinicia depois -- a folga é só para o socket esvaziar.
+  if (plano.suicida) {
+    res.json({ ok: true, reiniciandoOBackend: true });
+    setTimeout(() => {
+      plano.rodar().catch((err) => console.error('[servicos] restart falhou:', err.message));
+    }, 250);
+    return;
+  }
+
+  try {
+    await plano.rodar();
+    res.json({ ok: true, servico: await servicos.statusDe(req.params.chave) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /**
  * Índice do admin.
  *
@@ -302,6 +345,13 @@ app.get('/admin', (req, res) => {
     .acoes { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .5rem; }
     .acoes a { padding: .6rem 1.1rem; background: #3b82f6; color: #fff; border-radius: 6px; text-decoration: none; font-size: .9rem; }
     .acoes a:hover { background: #2563eb; }
+    .linha small { color: #666; font-size: .75rem; font-weight: 400; }
+    .btns { display: flex; gap: .4rem; flex-shrink: 0; }
+    .btns button { padding: .35rem .7rem; background: #2a2a2a; color: #ddd; border: 1px solid #444; border-radius: 5px; font-size: .8rem; cursor: pointer; font-family: inherit; }
+    .btns button:hover:not(:disabled) { border-color: #3b82f6; color: #fff; }
+    .btns button[data-a="stop"]:hover:not(:disabled) { border-color: #f87171; color: #f87171; }
+    .btns button:disabled { opacity: .4; cursor: default; }
+    .nota { color: #666; font-size: .8rem; line-height: 1.5; margin: .75rem 0 0; max-width: 46rem; }
   </style>
 </head>
 <body>
@@ -341,6 +391,14 @@ app.get('/admin', (req, res) => {
     <div class="linha"><span class="k">Volume</span><span class="v" id="pVol">—</span></div>
   </div>
 
+  <h2>Serviços</h2>
+  <div class="card" id="servicos"><div class="linha"><span class="k">carregando…</span></div></div>
+  <p class="nota">
+    Sem autenticação: qualquer um na rede que abrir esta página pode parar os serviços.
+    O Backend não tem botão de parar de propósito — pará-lo mataria o servidor
+    que serve esta página, e só o ssh traria de volta.
+  </p>
+
   <script>
     const API = '${apiBase}';
     const $ = (id) => document.getElementById(id);
@@ -348,10 +406,13 @@ app.get('/admin', (req, res) => {
 
     async function tick() {
       try {
-        const [leitor, player] = await Promise.all([
+        const [leitor, player, servicos] = await Promise.all([
           fetch(API + '/api/music/reader').then((r) => r.json()),
           fetch(API + '/api/music/player/status').then((r) => r.json()),
+          fetch(API + '/api/services').then((r) => r.json()),
         ]);
+
+        pinta(servicos);
 
         $('leitorEstado').textContent = leitor.running ? 'ativo' : 'inativo';
         $('leitorEstado').className = 'v ' + (leitor.running ? 'ok' : 'off');
@@ -375,6 +436,57 @@ app.get('/admin', (req, res) => {
         // backend reiniciando: a próxima volta pega
       }
     }
+
+    /*
+     * Serviços.
+     *
+     * Redesenhado a cada volta e não só na carga, porque um "stop" daqui muda
+     * o estado e um "restart" do backend muda duas vezes -- cai e volta.
+     */
+    let mexendo = null; // chave em ação: trava os botões e evita o piscar do polling
+
+    function pinta(servicos) {
+      if (mexendo) return;
+      $('servicos').innerHTML = servicos.map((s) => {
+        const ativo = s.estado === 'active';
+        const botoes = [
+          ativo ? '' : '<button data-s="' + s.chave + '" data-a="start">ligar</button>',
+          s.podeParar && ativo ? '<button data-s="' + s.chave + '" data-a="stop">desligar</button>' : '',
+          '<button data-s="' + s.chave + '" data-a="restart">reiniciar</button>',
+        ].join('');
+        return '<div class="linha">' +
+          '<span class="k">' + s.rotulo + '<br><small>' + s.descricao + '</small></span>' +
+          '<span class="v ' + (ativo ? 'ok' : 'off') + '">' + s.estado + (s.sub ? ' (' + s.sub + ')' : '') + '</span>' +
+          '<span class="btns">' + botoes + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+    $('servicos').addEventListener('click', async (ev) => {
+      const b = ev.target.closest('button');
+      if (!b || mexendo) return;
+
+      const chave = b.dataset.s, acao = b.dataset.a;
+      if (acao === 'stop' && !confirm('Desligar ' + chave + '?')) return;
+
+      mexendo = chave;
+      $('servicos').querySelectorAll('button').forEach((x) => (x.disabled = true));
+      b.textContent = '...';
+
+      try {
+        const r = await fetch(API + '/api/services/' + chave + '/' + acao, { method: 'POST' });
+        const corpo = await r.json();
+        if (!r.ok) alert(corpo.error || 'Falhou');
+      } catch (e) {
+        // Reiniciar o backend derruba a conexão às vezes antes da resposta
+        // chegar. Não é erro: o serviço volta e o polling reencontra.
+        if (chave !== 'alexo') alert('Falhou: ' + e.message);
+      }
+
+      mexendo = null;
+      // O systemd leva um instante para assentar; ler cedo mostra o estado velho.
+      setTimeout(tick, 1200);
+    });
 
     tick();
     setInterval(tick, 2000);
