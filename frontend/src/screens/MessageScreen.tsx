@@ -1,6 +1,8 @@
 import { Frame, TitleBar } from '@react95/core';
 import { useApp } from '../contexts';
-import { Bulb, Wmsui322223, Message } from '@react95/icons';
+import { Bulb } from '@react95/icons/Bulb';
+import { Wmsui322223 } from '@react95/icons/Wmsui322223';
+import { Message } from '@react95/icons/Message';
 import { MessageType } from 'src/types';
 
 const MESSAGE_ICONS = {

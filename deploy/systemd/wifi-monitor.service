@@ -1,0 +1,29 @@
+# Amostra o estado do Wi-Fi continuamente, para diagnosticar quedas.
+#
+# Roda no próprio Pi porque medir de fora perde a conexão e os dados exatamente
+# no instante da queda -- foi o que aconteceu em 25/08/2026, quando a rede caiu
+# durante um teste e o SSH morreu junto.
+#
+# A saída vai para o journald, que já está persistente com teto de 50 MB. Isso
+# dispensa rotação própria e sobrevive a reboot, ao contrário do arquivo em /tmp
+# que a primeira versão usava.
+#
+#   journalctl -u wifi-monitor -f
+#   journalctl -u wifi-monitor --since '-6h' | grep SEM_RESPOSTA
+#
+# Campos com '?' no lugar do sinal indicam interface desassociada -- a queda de
+# verdade, distinta de ping lento por Pi sobrecarregado.
+
+[Unit]
+Description=Monitor de Wi-Fi do Alexo
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/home/pi/wifi-monitor.sh
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

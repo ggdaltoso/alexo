@@ -1,3 +1,4 @@
+import { useCallback, useRef, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { ForecastDashboard } from './screens/ForecastDashboard';
 import CalendarScreen from './screens/CalendarScreen';
@@ -10,6 +11,40 @@ import { Frame, ProgressBar } from '@react95/core';
 
 export default function App() {
   const { weatherLoading: loading, timerProgress } = useApp();
+
+  /*
+   * O ProgressBar do React95 exige largura em PIXELS, não em porcentagem.
+   *
+   * Ele desenha o rótulo duas vezes -- uma no fundo e outra dentro da parte
+   * preenchida, recortada -- para o texto inverter de cor conforme a barra
+   * avança. As duas cópias só ficam alinhadas se a de dentro tiver a largura
+   * total da barra; com `width="100%"` os 100% passam a valer sobre o recorte, e
+   * o percentual aparece duas vezes, torto.
+   *
+   * Medir o container é o que substitui o antigo `window.innerWidth / 2`, que
+   * dava px mas ignorava o padding do body e o gap entre as colunas -- a barra
+   * ficava mais larga que a coluna. Além disso era lido uma vez só, no primeiro
+   * render, então não acompanhava redimensionamento.
+   */
+  const [larguraBarra, setLarguraBarra] = useState(0);
+  const observador = useRef<ResizeObserver | null>(null);
+
+  /*
+   * Callback ref, e não useRef + useEffect([]).
+   *
+   * O `if (loading)` abaixo devolve outra árvore: no primeiro render a barra não
+   * existe. Um efeito com deps vazias rodaria nesse momento, encontraria a ref
+   * nula, sairia -- e nunca mais rodaria, deixando a largura em 0 para sempre.
+   * O callback ref dispara quando o nó realmente entra no DOM.
+   */
+  const medirArea = useCallback((el: HTMLDivElement | null) => {
+    observador.current?.disconnect();
+    if (!el) return;
+    observador.current = new ResizeObserver(([entrada]) =>
+      setLarguraBarra(Math.round(entrada.contentRect.width))
+    );
+    observador.current.observe(el);
+  }, []);
 
   if (loading) {
     return (
@@ -30,12 +65,14 @@ export default function App() {
           <Route path="/exchange" element={<ExchangeRateScreen />} />
         </Routes>
       </div>
-      <Frame width={`${window.innerWidth / 2}px`}>
-        <ProgressBar
-          width={`${window.innerWidth / 2}px`}
-          percent={Math.min(100, Math.max(0, timerProgress))}
-        />
-      </Frame>
+      <div ref={medirArea} className="w-full">
+        <Frame width="100%">
+          <ProgressBar
+            width={`${larguraBarra}px`}
+            percent={Math.min(100, Math.max(0, timerProgress))}
+          />
+        </Frame>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,10 @@
 import React, { useMemo } from 'react';
 import { Battery } from 'lucide-react';
 import { useBattery } from '../hooks/useBattery';
-import { Systray300, Systray301, Systray302, Systray306 } from '@react95/icons';
+import { Systray300 } from '@react95/icons/Systray300';
+import { Systray301 } from '@react95/icons/Systray301';
+import { Systray302 } from '@react95/icons/Systray302';
+import { Systray306 } from '@react95/icons/Systray306';
 
 export const BatteryIndicator = React.memo(() => {
   const { batteryStatus, error } = useBattery();

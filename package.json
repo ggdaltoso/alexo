@@ -10,7 +10,12 @@
     "build:frontend": "cd frontend && npm run build",
     "build": "npm run build:frontend",
     "start": "cd backend && NODE_ENV=production node server.js",
-    "preview": "cd frontend && npm run preview"
+    "preview": "cd frontend && npm run preview",
+    "deploy": "bash scripts/deploy.sh",
+    "deploy:dry": "bash scripts/deploy.sh --dry-run",
+    "deploy:fast": "bash scripts/deploy.sh --skip-build",
+    "deploy:no-restart": "bash scripts/deploy.sh --no-restart",
+    "wifi": "bash scripts/wifi-resumo.sh"
   },
   "dependencies": {
     "concurrently": "9.2.1"

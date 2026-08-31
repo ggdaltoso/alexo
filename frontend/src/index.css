@@ -21,6 +21,69 @@ html, body, #root {
   height: 100%;
 }
 
+/*
+ * Letreiro: parado, rola até revelar o fim, volta, repete.
+ *
+ * As paradas são feitas repetindo o mesmo valor em duas paradas seguidas do
+ * keyframe -- entre 0% e 20% o transform não muda, então o texto fica imóvel.
+ * Com a duração total em 15s, esses 20% dão os 3 segundos de leitura antes de
+ * começar a andar.
+ *
+ * A distância (`--rolagem`) vem do JavaScript porque o CSS não consegue
+ * expressá-la: seria `-(largura do texto - largura da caixa)`, e as duas
+ * larguras têm bases de porcentagem diferentes. Ver components/Letreiro.tsx.
+ *
+ * `transform` de propósito: animar `left` ou `margin-left` forçaria recálculo de
+ * layout a cada quadro, o que no Pi Zero engasga.
+ */
+.alexo-letreiro {
+  display: inline-block;
+  animation: alexo-letreiro 15s ease-in-out infinite;
+}
+
+@keyframes alexo-letreiro {
+  0%,
+  20% {
+    transform: translateX(0);
+  }
+  70%,
+  85% {
+    transform: translateX(var(--rolagem, 0));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/*
+ * Escurecimento da tela.
+ *
+ * Workaround: o display deste Pi não tem controle de brilho, e no escuro ele
+ * ofusca. Este overlay preto por cima de tudo simula brilho menor.
+ *
+ * Feito com body::after, e não com um componente React, para cobrir a árvore
+ * inteira -- galeria, rotas e qualquer tela futura -- sem depender de alguém
+ * lembrar de envolver o conteúdo novo.
+ *
+ * pointer-events: none é obrigatório, não detalhe: sem isso o overlay
+ * intercepta todo toque e a tela sensível ao toque para de funcionar.
+ *
+ * Para ajustar, mexer só em --screen-dim (0 = sem escurecer, 1 = preto).
+ */
+:root {
+  --screen-dim: 0.2;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: var(--screen-dim);
+  pointer-events: none;
+  z-index: 2147483647;
+}
+
 /* Ensure minimum touch target size */
 button,
 a,

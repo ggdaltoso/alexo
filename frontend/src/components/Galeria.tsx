@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { API_CONFIG } from '../config/api';
 import { Frame } from '@react95/core/Frame';
 import { TitleBar } from '@react95/core/TitleBar';
-import { Wangimg128 } from '@react95/icons';
+import { Wangimg128 } from '@react95/icons/Wangimg128';
 
 interface GalleryItem {
   id: string;
@@ -26,7 +26,17 @@ export function Galeria() {
       const res = await fetch(`${API_CONFIG.BASE_URL}/api/gallery`);
       if (!res.ok) return;
       const data: GalleryItem[] = await res.json();
-      setImages([...data].sort((a, b) => a.order - b.order));
+      const next = [...data].sort((a, b) => a.order - b.order);
+      // Preservar a referência quando nada mudou é obrigatório, não otimização.
+      // O efeito do slideshow depende de `images`: um array novo a cada poll o
+      // remonta e zera o timer. Com poll de 30s e slide de 5min, o timer nunca
+      // chegava a disparar e a galeria ficava parada na primeira foto.
+      setImages((prev) => {
+        const igual =
+          prev.length === next.length &&
+          prev.every((p, i) => p.id === next[i].id && p.url === next[i].url);
+        return igual ? prev : next;
+      });
     } catch {
       // silently ignore network errors
     }
@@ -59,7 +69,9 @@ export function Galeria() {
   if (images.length === 0) {
     return (
       <Frame
-        className="w-1/2 h-full flex flex-col shrink-0 overflow-hidden relative bg-black"
+        // w-full + flex-1: quem decide a largura e a altura agora e a coluna em
+      // main.tsx, que divide o espaço com o MusicPlayer abaixo.
+      className="w-full flex-1 min-h-0 flex flex-col overflow-hidden relative bg-black"
         p="$1"
         boxShadow="$out"
       >
@@ -79,7 +91,9 @@ export function Galeria() {
 
   return (
     <Frame
-      className="w-1/2 h-full flex flex-col shrink-0 overflow-hidden relative bg-black"
+      // w-full + flex-1: quem decide a largura e a altura agora e a coluna em
+      // main.tsx, que divide o espaço com o MusicPlayer abaixo.
+      className="w-full flex-1 min-h-0 flex flex-col overflow-hidden relative bg-black"
       p="$1"
       boxShadow="$out"
     >

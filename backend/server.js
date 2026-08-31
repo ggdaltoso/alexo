@@ -5,8 +5,13 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const { execFile } = require('child_process');
 const wsServer = require('./ws');
 const state = require('./state');
+const { randomUUID } = require('./ids');
+const musicController = require('./musicController');
+const musicCatalog = require('./musicCatalog');
+const nfcReader = require('./nfcReader');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,11 +19,17 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads', 'gallery');
 
+// uploads/ e data/ são deliberadamente excluídos do deploy (é conteúdo que vive
+// no Pi, não no repo), então nada os cria por lá -- num Pi novo, ou se alguém
+// apagar a pasta, o primeiro upload falhava com ENOENT depois de já ter aceitado
+// o arquivo. Criar na subida é mais barato que documentar um passo manual.
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    cb(null, `${require('crypto').randomUUID()}${ext}`);
+    cb(null, `${randomUUID()}${ext}`);
   },
 });
 
@@ -50,7 +61,15 @@ app.post('/api/nfc', (req, res) => {
   if (typeof type !== 'string' || typeof message !== 'string') {
     return res.status(400).json({ error: 'Invalid payload' });
   }
-  wsServer.broadcast({ type, message, timestamp: Date.now() });
+  // `type` no corpo da requisição é a severidade ('info' | 'warning'), e no
+  // broadcast ele vira `messageType`: no WebSocket o campo `type` é o
+  // discriminador da união e não pode carregar outra coisa. Ver ws.js.
+  wsServer.broadcast({
+    type: 'nfc_message',
+    messageType: type,
+    message,
+    timestamp: Date.now(),
+  });
   res.status(200).json({ ok: true });
 });
 
@@ -59,8 +78,42 @@ app.get('/api/gallery', (req, res) => {
   res.json(state.getGallery());
 });
 
-app.post('/api/gallery/upload', upload.single('image'), (req, res) => {
+/**
+ * Reduz a foto recém-enviada para a resolução que a tela usa de fato.
+ *
+ * Foto de celular chega em 3468x4624. O arquivo é pequeno porque JPEG comprime
+ * bem, mas o navegador precisa descomprimir para desenhar, e aí cada pixel vira
+ * 4 bytes: 61 MB de RAM por foto num aparelho de 430 MB. O painel da galeria tem
+ * cerca de 240x230 pixels.
+ *
+ * Isso não é otimização: em 25/08/2026 as cinco fotos da galeria somavam 190 MB
+ * decodificados, o swap enchia e o Wi-Fi caía junto -- no BCM2835 o cartão SD e
+ * o rádio dividem o controlador SDIO. Depois de reduzir, 8,2 MB.
+ *
+ * Feito em Python porque o Pillow já está no Pi; as alternativas em Node são
+ * addons nativos que não compilam bem no ARMv6.
+ *
+ * Falha aqui não derruba o upload: a foto original fica, grande, e o
+ * resize-gallery.py em lote conserta depois. Perder a foto seria pior.
+ */
+function reduzirImagem(caminho) {
+  return new Promise((resolve) => {
+    const script = path.join(__dirname, 'scripts', 'resize-gallery.py');
+    execFile('python3', [script, '--arquivo', caminho], { timeout: 60000 }, (err, _out, stderr) => {
+      if (err) {
+        console.warn(`[galeria] não consegui reduzir ${path.basename(caminho)}: ${stderr || err.message}`);
+      }
+      resolve();
+    });
+  });
+}
+
+app.post('/api/gallery/upload', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+
+  // Antes de registrar no catálogo: se a redução demorar, é melhor o upload
+  // parecer lento do que a galeria exibir a foto gigante por alguns segundos.
+  await reduzirImagem(req.file.path);
 
   const item = {
     id: path.basename(req.file.filename, path.extname(req.file.filename)),
@@ -92,6 +145,483 @@ app.delete('/api/gallery/:id', (req, res) => {
 
   wsServer.broadcast({ type: 'gallery_updated' });
   res.json({ ok: true });
+});
+
+// Música
+//
+// Convenções da galeria mantidas: broadcast após mutação, 404 com corpo JSON.
+// A diferença é que faixas não sobem por formulário -- vêm do disco, via
+// importador. Ver musicCatalog.js.
+
+app.get('/api/music/albums', (req, res) => {
+  const albums = state.getAlbums().map((album) => ({
+    album,
+    trackCount: state.getTracksByAlbum(album).length,
+  }));
+  res.json(albums);
+});
+
+app.get('/api/music/tracks', (req, res) => {
+  const { album } = req.query;
+  res.json(album ? state.getTracksByAlbum(album) : state.getTracks());
+});
+
+/** Revarre uploads/music/ e regrava o catálogo. Idempotente. */
+app.post('/api/music/import', (req, res) => {
+  const tracks = musicCatalog.scan();
+  if (!tracks.length) {
+    return res.status(400).json({ error: 'Nenhum .mp3 encontrado em uploads/music' });
+  }
+  const { novos, sumidos } = musicCatalog.diff(state.getTracks(), tracks);
+  state.replaceTracks(tracks);
+  wsServer.broadcast({ type: 'music_tracks_updated' });
+  res.json({ total: tracks.length, novos: novos.length, sumidos: sumidos.length });
+});
+
+app.get('/api/music/tags', (req, res) => {
+  res.json(state.getTagMappings());
+});
+
+app.post('/api/music/tags', (req, res) => {
+  const { uid, album } = req.body || {};
+  if (!uid || !album) return res.status(400).json({ error: 'uid e album são obrigatórios' });
+  // Recusar álbum inexistente aqui evita um mapeamento que só falharia na hora
+  // de encostar a tag, longe do lugar onde o erro foi cometido.
+  if (!state.getTracksByAlbum(album).length) {
+    return res.status(400).json({ error: `Álbum "${album}" não tem faixas no catálogo` });
+  }
+  const mapping = state.setTagMapping({ uid: String(uid).toUpperCase(), album });
+  wsServer.broadcast({ type: 'music_tags_updated' });
+  res.status(201).json(mapping);
+});
+
+app.delete('/api/music/tags/:uid', (req, res) => {
+  const removed = state.removeTagMapping(req.params.uid.toUpperCase());
+  if (!removed) return res.status(404).json({ error: 'Tag não mapeada' });
+  wsServer.broadcast({ type: 'music_tags_updated' });
+  res.json({ ok: true });
+});
+
+/** Tag encostada no leitor AGORA. É o que deixa o admin preencher o UID sozinho. */
+app.get('/api/music/reader', (req, res) => {
+  res.json({ tag: nfcReader.getCurrentTag(), running: nfcReader.isRunning() });
+});
+
+app.get('/api/music/player/status', async (req, res) => {
+  res.json(await musicController.getStatus());
+});
+
+const acoesDoPlayer = {
+  play: (body) => musicController.play(body.album, body.trackId),
+  pause: () => musicController.pause(),
+  resume: () => musicController.resume(),
+  restart: () => musicController.restart(),
+  next: () => musicController.next(),
+  previous: () => musicController.previous(),
+  volume: (body) => musicController.setVolume(body.value),
+  // stopPlayback, NÃO stop: `musicController.stop()` desliga o controller
+  // inteiro, leitor NFC junto. Ver o comentário lá.
+  stop: () => musicController.stopPlayback(),
+};
+
+app.post('/api/music/player/:acao', async (req, res) => {
+  const acao = acoesDoPlayer[req.params.acao];
+  if (!acao) return res.status(404).json({ error: `Ação desconhecida: ${req.params.acao}` });
+  try {
+    const status = await acao(req.body || {});
+    // status nulo = player indisponível (sem mpv). Não é erro do pedido.
+    res.json(status || (await musicController.getStatus()));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Simula encostar/tirar uma tag.
+ *
+ * Existe para desenvolver o frontend numa máquina sem PN532: os eventos passam
+ * exatamente pelo mesmo caminho dos do leitor real.
+ */
+app.post('/api/nfc-tag/simulate', async (req, res) => {
+  const { uid, event } = req.body || {};
+  if (!uid || !event) return res.status(400).json({ error: 'uid e event são obrigatórios' });
+  try {
+    await musicController.simulateTag(String(uid).toUpperCase(), event);
+    res.json(await musicController.getStatus());
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * Índice do admin.
+ *
+ * Server-rendered como as outras páginas de admin, mas os blocos que mudam
+ * sozinhos (leitor NFC, player) são atualizados por polling -- renderizar uma
+ * vez mostraria um retrato velho de coisas que mudam a cada segundo.
+ */
+app.get('/admin', (req, res) => {
+  const backendBase = `http://${req.hostname}:${PORT}`;
+  const apiBase = NODE_ENV === 'production' ? '' : backendBase;
+
+  const imagens = state.getGallery().length;
+  const faixas = state.getTracks().length;
+  const albuns = state.getAlbums().length;
+  const tags = state.getTagMappings();
+  // Mapeamento apontando para álbum que sumiu: o sintoma sem isso é "encostei a
+  // tag e não tocou", que não sugere nada sobre a causa.
+  const tagsQuebradas = tags.filter((t) => state.getTracksByAlbum(t.album).length === 0);
+
+  const subiuEm = new Date(Date.now() - process.uptime() * 1000);
+
+  res.send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alexo — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 2rem; }
+    h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+    .sub { color: #888; font-size: .9rem; margin: 0 0 2rem; }
+    h2 { font-size: .8rem; margin: 2rem 0 .75rem; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1rem; }
+    .card { background: #1e1e1e; border: 1px solid #333; border-radius: 8px; padding: 1.25rem; text-decoration: none; color: inherit; display: block; }
+    a.card:hover { border-color: #3b82f6; }
+    .num { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .rot { color: #888; font-size: .85rem; margin-top: .35rem; }
+    .linha { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: .5rem 0; border-bottom: 1px solid #2a2a2a; font-size: .9rem; }
+    .linha:last-child { border-bottom: none; }
+    .linha .k { color: #888; }
+    .v { font-family: ui-monospace, monospace; }
+    .ok { color: #6ee7b7; }
+    .off { color: #f87171; }
+    .warn { background: #422006; border-color: #854d0e; }
+    .warn .rot { color: #fbbf24; }
+    .acoes { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .5rem; }
+    .acoes a { padding: .6rem 1.1rem; background: #3b82f6; color: #fff; border-radius: 6px; text-decoration: none; font-size: .9rem; }
+    .acoes a:hover { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>Alexo — Admin</h1>
+  <p class="sub">backend no ar desde ${subiuEm.toLocaleString('pt-BR')}</p>
+
+  <div class="acoes">
+    <a href="/admin/gallery">Galeria</a>
+    <a href="/admin/music">Música</a>
+  </div>
+
+  <h2>Conteúdo</h2>
+  <div class="grid">
+    <a class="card" href="/admin/gallery"><div class="num">${imagens}</div><div class="rot">imagens na galeria</div></a>
+    <a class="card" href="/admin/music"><div class="num">${albuns}</div><div class="rot">álbuns</div></a>
+    <a class="card" href="/admin/music"><div class="num">${faixas}</div><div class="rot">faixas no catálogo</div></a>
+    <a class="card ${tagsQuebradas.length ? 'warn' : ''}" href="/admin/music">
+      <div class="num">${tags.length}</div>
+      <div class="rot">${tagsQuebradas.length
+        ? `tags — ${tagsQuebradas.length} apontando para álbum inexistente`
+        : 'tags cadastradas'}</div>
+    </a>
+  </div>
+
+  <h2>Hardware</h2>
+  <div class="card">
+    <div class="linha"><span class="k">Leitor NFC</span><span class="v" id="leitorEstado">...</span></div>
+    <div class="linha"><span class="k">Tag encostada</span><span class="v" id="leitorTag">...</span></div>
+    <div class="linha"><span class="k">Player (mpv)</span><span class="v" id="playerEstado">...</span></div>
+  </div>
+
+  <h2>Tocando agora</h2>
+  <div class="card">
+    <div class="linha"><span class="k">Álbum</span><span class="v" id="pAlbum">—</span></div>
+    <div class="linha"><span class="k">Faixa</span><span class="v" id="pFaixa">—</span></div>
+    <div class="linha"><span class="k">Posição</span><span class="v" id="pPos">—</span></div>
+    <div class="linha"><span class="k">Volume</span><span class="v" id="pVol">—</span></div>
+  </div>
+
+  <script>
+    const API = '${apiBase}';
+    const $ = (id) => document.getElementById(id);
+    const mm = (v) => String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(Math.floor(v % 60)).padStart(2, '0');
+
+    async function tick() {
+      try {
+        const [leitor, player] = await Promise.all([
+          fetch(API + '/api/music/reader').then((r) => r.json()),
+          fetch(API + '/api/music/player/status').then((r) => r.json()),
+        ]);
+
+        $('leitorEstado').textContent = leitor.running ? 'ativo' : 'inativo';
+        $('leitorEstado').className = 'v ' + (leitor.running ? 'ok' : 'off');
+        $('leitorTag').textContent = leitor.tag ? leitor.tag.uid : '—';
+
+        // O player não expõe "disponível" direto; volume nulo é o sinal de que
+        // não há mpv atendendo do outro lado.
+        const vivo = player && player.volume !== undefined && player.volume !== null;
+        $('playerEstado').textContent = vivo ? 'conectado' : 'sem mpv';
+        $('playerEstado').className = 'v ' + (vivo ? 'ok' : 'off');
+
+        $('pAlbum').textContent = player.album || '—';
+        $('pFaixa').textContent = player.title
+          ? player.title + '  (' + (player.trackIndex + 1) + '/' + player.trackCount + ')'
+          : '—';
+        $('pPos').textContent = player.title
+          ? (player.isPlaying ? '▶ ' : '|| ') + mm(player.position) + (player.duration ? ' / ' + mm(player.duration) : '')
+          : '—';
+        $('pVol').textContent = vivo ? player.volume : '—';
+      } catch (e) {
+        // backend reiniciando: a próxima volta pega
+      }
+    }
+
+    tick();
+    setInterval(tick, 2000);
+  </script>
+</body>
+</html>`);
+});
+
+app.get('/admin/music', (req, res) => {
+  const backendBase = `http://${req.hostname}:${PORT}`;
+  const apiBase = NODE_ENV === 'production' ? '' : backendBase;
+
+  const albums = state.getAlbums();
+  const mappings = state.getTagMappings();
+
+  const opcoes = albums
+    .map((a) => `<option value="${a.replace(/"/g, '&quot;')}">${a}</option>`)
+    .join('');
+
+  const linhas = mappings.length === 0
+    ? '<tr><td colspan="4" class="vazio">Nenhuma tag cadastrada.</td></tr>'
+    : mappings.map((m) => {
+        const qtd = state.getTracksByAlbum(m.album).length;
+        // Álbum sem faixas = pasta renomeada depois do cadastro. Precisa gritar,
+        // porque o sintoma sem isso é "encostei a tag e não tocou".
+        const aviso = qtd === 0 ? ' <span class="erro">sem faixas!</span>' : '';
+        return `<tr>
+          <td class="uid">${m.uid}</td>
+          <td>${m.album}${aviso}</td>
+          <td>${qtd}</td>
+          <td>
+            <button onclick="tocar('${m.album.replace(/'/g, "\\'")}')">Tocar</button>
+            <button class="del" onclick="remover('${m.uid}', '${m.album.replace(/'/g, "\\'")}')">Remover</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+  res.send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Música — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 2rem; }
+    h1 { font-size: 1.5rem; margin: 0 0 1.5rem; }
+    h2 { font-size: 1.1rem; margin: 2rem 0 .75rem; color: #aaa; font-weight: 600; }
+    .box { background: #1e1e1e; border: 1px solid #333; border-radius: 8px; padding: 1.25rem; }
+    select, input { padding: .5rem; background: #2a2a2a; border: 1px solid #444; border-radius: 4px; color: #eee; font-size: .95rem; }
+    select { min-width: 18rem; }
+    button { padding: .5rem 1rem; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: .9rem; }
+    button:hover { background: #2563eb; }
+    button.del { background: #444; }
+    button.del:hover { background: #b91c1c; }
+    button:disabled { background: #333; color: #777; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+    th, td { text-align: left; padding: .6rem .5rem; border-bottom: 1px solid #2a2a2a; font-size: .9rem; }
+    th { color: #888; font-weight: 600; font-size: .8rem; text-transform: uppercase; }
+    .uid { font-family: ui-monospace, monospace; color: #7dd3fc; }
+    .vazio { color: #888; text-align: center; padding: 1.5rem; }
+    .erro { color: #f87171; font-size: .8rem; }
+    .leitor { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+    .pill { font-family: ui-monospace, monospace; padding: .35rem .7rem; border-radius: 999px; background: #2a2a2a; color: #888; }
+    .pill.viva { background: #064e3b; color: #6ee7b7; }
+    .status { margin-top: .75rem; color: #aaa; font-size: .9rem; }
+    .controles { display: flex; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }
+    a { color: #7dd3fc; }
+  </style>
+</head>
+<body>
+  <h1>Música — Admin</h1>
+  <p style="color:#888;margin:-1rem 0 1.5rem"><a href="/admin">← Admin</a> · <a href="/admin/gallery">Galeria</a></p>
+
+  <h2>Cadastrar tag</h2>
+  <div class="box">
+    <div class="leitor">
+      <span>Tag no leitor:</span>
+      <span class="pill" id="pill">nenhuma</span>
+      <input id="uid" placeholder="UID (ou encoste uma tag)" size="20" />
+      <select id="album">${opcoes}</select>
+      <button onclick="salvar()">Mapear</button>
+    </div>
+    <div class="status" id="msg"></div>
+  </div>
+
+  <h2>Tags cadastradas</h2>
+  <div class="box">
+    <table>
+      <thead><tr><th>UID</th><th>Álbum</th><th>Faixas</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+  </div>
+
+  <h2>Player</h2>
+  <div class="box">
+    <div class="leitor">
+      <select id="pAlbum" onchange="carregarFaixas()">${opcoes}</select>
+      <select id="pFaixa"><option>carregando...</option></select>
+      <button onclick="tocarSelecao()">Tocar</button>
+    </div>
+    <div class="status" id="player">carregando...</div>
+    <div class="controles">
+      <button onclick="acao('previous')">|◀ Anterior</button>
+      <button onclick="acao('pause')">|| Pausar</button>
+      <button onclick="acao('resume')">▶ Retomar</button>
+      <button onclick="acao('next')">Próxima ▶|</button>
+      <button class="del" onclick="acao('stop')">Parar</button>
+    </div>
+    <div class="controles">
+      <button onclick="volume(-10)">Vol −</button>
+      <button onclick="volume(10)">Vol +</button>
+      <button class="del" onclick="reimportar()">Reimportar catálogo</button>
+    </div>
+  </div>
+
+  <script>
+    const API = '${apiBase}';
+    let volAtual = 100;
+
+    function aviso(t, erro) {
+      const el = document.getElementById('msg');
+      el.textContent = t;
+      el.style.color = erro ? '#f87171' : '#6ee7b7';
+    }
+
+    async function salvar() {
+      const uid = document.getElementById('uid').value.trim().toUpperCase();
+      const album = document.getElementById('album').value;
+      if (!uid) return aviso('Encoste uma tag ou digite o UID.', true);
+      const r = await fetch(API + '/api/music/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, album }),
+      });
+      if (r.ok) location.reload();
+      else aviso((await r.json()).error, true);
+    }
+
+    async function remover(uid, album) {
+      // Confirmação porque a ação é destrutiva e o botão fica ao lado de
+      // "Tocar", que é inofensivo.
+      if (!confirm('Remover o mapeamento da tag ' + uid + ' (' + album + ')?')) return;
+      await fetch(API + '/api/music/tags/' + uid, { method: 'DELETE' });
+      location.reload();
+    }
+
+    async function tocar(album, trackId) {
+      await fetch(API + '/api/music/player/play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ album, trackId }),
+      });
+      atualizarPlayer();
+    }
+
+    // Preenche o seletor de faixas do álbum escolhido. A primeira opção é
+    // "álbum inteiro" (trackId vazio): tocar do começo é o caso comum, e sem ela
+    // seria preciso escolher a faixa 1 explicitamente.
+    async function carregarFaixas() {
+      const album = document.getElementById('pAlbum').value;
+      const sel = document.getElementById('pFaixa');
+      sel.innerHTML = '<option value="">carregando...</option>';
+      try {
+        const r = await fetch(API + '/api/music/tracks?album=' + encodeURIComponent(album));
+        const faixas = await r.json();
+        sel.innerHTML = '<option value="">— álbum inteiro (' + faixas.length + ' faixas) —</option>' +
+          faixas.map((t, i) =>
+            '<option value="' + t.id + '">' + String(i + 1).padStart(2, '0') + '. ' +
+            t.title.replace(/</g, '&lt;') + '</option>').join('');
+      } catch (e) {
+        sel.innerHTML = '<option value="">erro ao carregar</option>';
+      }
+    }
+
+    function tocarSelecao() {
+      tocar(document.getElementById('pAlbum').value, document.getElementById('pFaixa').value || undefined);
+    }
+
+    async function acao(nome) {
+      await fetch(API + '/api/music/player/' + nome, { method: 'POST' });
+      atualizarPlayer();
+    }
+
+    async function volume(delta) {
+      volAtual = Math.max(0, Math.min(100, volAtual + delta));
+      await fetch(API + '/api/music/player/volume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: volAtual }),
+      });
+      atualizarPlayer();
+    }
+
+    async function reimportar() {
+      const r = await fetch(API + '/api/music/import', { method: 'POST' });
+      const d = await r.json();
+      if (r.ok) {
+        aviso(d.total + ' faixas (' + d.novos + ' novas, ' + d.sumidos + ' removidas)');
+        setTimeout(() => location.reload(), 1200);
+      } else aviso(d.error, true);
+    }
+
+    // Preenche o UID sozinho com a tag que estiver no leitor. É o que evita
+    // digitar hexadecimal a mão -- e o UID vem do mesmo caminho que o player usa,
+    // então não tem como divergir.
+    async function lerTag() {
+      try {
+        const r = await fetch(API + '/api/music/reader');
+        const d = await r.json();
+        const pill = document.getElementById('pill');
+        const campo = document.getElementById('uid');
+        if (d.tag) {
+          pill.textContent = d.tag.uid;
+          pill.className = 'pill viva';
+          if (document.activeElement !== campo) campo.value = d.tag.uid;
+        } else {
+          pill.textContent = d.running ? 'nenhuma' : 'leitor off';
+          pill.className = 'pill';
+        }
+      } catch (e) { /* backend reiniciando: a próxima volta pega */ }
+    }
+
+    async function atualizarPlayer() {
+      try {
+        const r = await fetch(API + '/api/music/player/status');
+        const s = await r.json();
+        volAtual = s.volume;
+        const el = document.getElementById('player');
+        if (!s.title) {
+          el.textContent = 'nada tocando  ·  volume ' + s.volume;
+          return;
+        }
+        const mm = (v) => String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(Math.floor(v % 60)).padStart(2, '0');
+        el.textContent = (s.isPlaying ? '▶ ' : '|| ') + s.album + '  ·  ' + s.title +
+          '  ·  faixa ' + (s.trackIndex + 1) + '/' + s.trackCount +
+          '  ·  ' + mm(s.position) + (s.duration ? ' / ' + mm(s.duration) : '') +
+          '  ·  vol ' + s.volume;
+      } catch (e) { /* idem */ }
+    }
+
+    lerTag(); atualizarPlayer(); carregarFaixas();
+    setInterval(lerTag, 1000);
+    setInterval(atualizarPlayer, 2000);
+  </script>
+</body>
+</html>`);
 });
 
 // Admin page
@@ -143,6 +673,7 @@ app.get('/admin/gallery', (req, res) => {
 </head>
 <body>
   <h1>Galeria — Gerenciar Imagens</h1>
+  <p style="color:#888;margin:-1rem 0 1.5rem"><a href="/admin" style="color:#7dd3fc">← Admin</a> · <a href="/admin/music" style="color:#7dd3fc">Música</a></p>
 
   <div class="upload-form">
     <label for="fileInput">Adicionar imagem (JPG, PNG, GIF, WebP — máx. 20 MB)</label>
@@ -226,5 +757,21 @@ server.listen(PORT, () => {
   if (NODE_ENV === 'production') {
     console.log(`Frontend available at http://localhost:${PORT}`);
   }
-  console.log(`Admin da galeria: http://localhost:${PORT}/admin/gallery`);
+  console.log(`Admin: http://localhost:${PORT}/admin`);
+
+  // Depois do listen, e sem await: o mpv leva ~11s para subir neste Pi, e o
+  // servidor não pode ficar sem atender HTTP nesse intervalo. Falha aqui não
+  // derruba nada -- o controller já trata tudo internamente e o backend segue
+  // funcionando sem música.
+  musicController.init().catch((err) => {
+    console.error('[music] init falhou:', err.message);
+  });
 });
+
+// Encerrar limpo: sem isso o leitor NFC fica com o barramento aberto e o
+// próximo processo herda um comando pendente.
+for (const sinal of ['SIGINT', 'SIGTERM']) {
+  process.on(sinal, () => {
+    musicController.stop().finally(() => process.exit(0));
+  });
+}

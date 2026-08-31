@@ -1,0 +1,27 @@
+# Desliga a economia de energia do Wi-Fi no boot.
+#
+# O Pi Zero W vinha caindo da rede a cada poucos minutos: o roteador continuava
+# mostrando o aparelho conectado, mas daqui o ARP não completava e nem SSH nem o
+# backend respondiam -- enquanto o próprio Pi seguia funcionando, porque o kiosk
+# só consome localhost. É o sintoma clássico do rádio dormindo entre beacons e
+# parando de responder a tráfego de entrada.
+#
+# Diagnóstico em 25/08/2026 descartou subtensão (`vcgencmd get_throttled` = 0x0,
+# zero ocorrências no dmesg) e temperatura (50,8'C). O que restou foi
+# `Power save: on` somado a um sinal medíocre (-67 dBm, qualidade 43/70).
+#
+# O laço existe porque a ordenação do systemd não garante que wlan0 já esteja
+# pronta quando o serviço roda: em vez de depender de ordenação frágil, insiste
+# por até 60s.
+
+[Unit]
+Description=Desliga a economia de energia do Wi-Fi (wlan0)
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'for i in $(seq 1 30); do /sbin/iw wlan0 set power_save off && exit 0; sleep 2; done; exit 1'
+
+[Install]
+WantedBy=multi-user.target

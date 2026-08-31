@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import type { WeatherData, Coordinates, NFCMessage } from '../types';
+import type { WeatherData, Coordinates, NFCMessage, MusicPlaybackState } from '../types';
 import { wsService } from '../services/websocket';
 import { useWeather } from '../hooks/useWeather';
+import { API_CONFIG } from '../config/api';
 
 interface AppContextType {
   // Weather
@@ -18,6 +19,9 @@ interface AppContextType {
   // Messages
   currentMessage: NFCMessage | null;
 
+  // Música
+  musicPlayback: MusicPlaybackState | null;
+
   // Timer
   timerProgress: number; // 0-100
 }
@@ -29,7 +33,7 @@ const SAO_VICENTE_COORDINATES: Coordinates = {
   longitude: -46.3919,
 };
 
-// Routes for automatic and manual navigation (excluding message and calendar route)
+// Routes for automatic and manual navigation (excluding /message and /calendar)
 const NAVIGATION_ROUTES = ['/', '/forecast', '/exchange'];
 
 const TIMER_DURATION = 10000; // 10 seconds
@@ -54,11 +58,13 @@ export function AppProvider({ children }: AppProviderProps) {
   // Message state
   const [currentMessage, setCurrentMessage] = useState<NFCMessage | null>(null);
 
+  // Estado do player. Chega por WebSocket em transições reais; o valor inicial
+  // vem de um GET no mount, senão um F5 no meio de uma música mostraria o painel
+  // vazio até a próxima transição -- que pode demorar uma faixa inteira.
+  const [musicPlayback, setMusicPlayback] = useState<MusicPlaybackState | null>(null);
+
   // Timer state
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [routeBeforeMessage, setRouteBeforeMessage] = useState<string | null>(
-    null,
-  );
 
   // Calculate progress percentage from elapsed time
   const timerProgress = Math.min(
@@ -87,10 +93,51 @@ export function AppProvider({ children }: AppProviderProps) {
     //     console.error('Failed to fetch initial state:', error);
     //   });
 
+    // Estado inicial do player, para o painel não nascer vazio depois de um F5.
+    fetch(`${API_CONFIG.BASE_URL}/api/music/player/status`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => { if (s) setMusicPlayback(s); })
+      .catch(() => { /* backend fora do ar: o WS preenche quando voltar */ });
+
     // Connect to WebSocket for real-time updates
     wsService.connect();
-    const unsubscribe = wsService.subscribe((message) => {
-      setCurrentMessage(message);
+    const unsubscribe = wsService.subscribe((event) => {
+      // Discriminar pelo `type` é obrigatório: `broadcast()` manda para todos os
+      // clientes sem filtro, então este callback vê TODO evento do backend, não
+      // só as mensagens. Sem o switch, um `gallery_updated` (que não tem
+      // `message` nem `timestamp`) virava uma NFCMessage malformada no estado.
+      switch (event.type) {
+        case 'nfc_message':
+          // Guarda a mensagem para quem navegar até /message, e nada mais.
+          // A regra que interrompia a tela automaticamente (ir para /message ao
+          // receber, e voltar 10s depois) foi removida: a página saiu de uso.
+          setCurrentMessage({
+            type: event.messageType,
+            message: event.message,
+            timestamp: event.timestamp,
+          });
+          break;
+
+        case 'gallery_updated':
+          // Ignorado de propósito: a Galeria faz polling e não escuta o WS.
+          break;
+
+        case 'music_playback_state': {
+          // `type` e `timestamp` são do envelope, não do estado do player.
+          const { type: _t, timestamp: _ts, ...estado } = event;
+          setMusicPlayback(estado);
+          break;
+        }
+
+        case 'music_tracks_updated':
+        case 'music_tags_updated':
+          // Só interessam ao admin, que relê sozinho.
+          break;
+
+        default:
+          // Variante que este cliente ainda não conhece (backend mais novo).
+          break;
+      }
     });
 
     return () => {
@@ -101,7 +148,7 @@ export function AppProvider({ children }: AppProviderProps) {
 
   // Auto-navigation timer effect
   useEffect(() => {
-    // Only run timer on navigation routes (not on /message)
+    // Only run the carousel timer on the navigation routes
     if (!NAVIGATION_ROUTES.includes(location.pathname)) {
       return;
     }
@@ -125,42 +172,6 @@ export function AppProvider({ children }: AppProviderProps) {
 
     return () => clearInterval(interval);
   }, [location.pathname, navigate]);
-
-  // Message interruption effect
-  useEffect(() => {
-    if (currentMessage && location.pathname !== '/message') {
-      // Store current route before showing message
-      setRouteBeforeMessage(location.pathname);
-      // Navigate to message screen
-      navigate('/message');
-      // Reset timer for message display
-      resetTimer();
-    }
-  }, [currentMessage, location.pathname, navigate]);
-
-  // Return from message effect
-  useEffect(() => {
-    // When on message route, start timer to return to previous route
-    if (location.pathname === '/message' && routeBeforeMessage) {
-      const interval = setInterval(() => {
-        setElapsedTime((prev) => {
-          const newElapsed = prev + TIMER_INTERVAL;
-
-          // When timer completes, return to previous route
-          if (newElapsed >= TIMER_DURATION) {
-            navigate(routeBeforeMessage);
-            setRouteBeforeMessage(null);
-            setCurrentMessage(null);
-            return 0;
-          }
-
-          return newElapsed;
-        });
-      }, TIMER_INTERVAL);
-
-      return () => clearInterval(interval);
-    }
-  }, [location.pathname, routeBeforeMessage, navigate]);
 
   // Keyboard navigation effect
   useEffect(() => {
@@ -216,6 +227,7 @@ export function AppProvider({ children }: AppProviderProps) {
     navigateToScreen,
     currentMessage,
     timerProgress,
+    musicPlayback,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

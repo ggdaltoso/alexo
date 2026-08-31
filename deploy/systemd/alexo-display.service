@@ -1,0 +1,23 @@
+[Unit]
+Description=Alexo Chromium Display
+After=graphical.target alexo.service
+Requires=alexo.service
+
+[Service]
+User=pi
+# As flags de memória não são capricho. Medido em 25/08/2026: o Chromium sem
+# restrição enchia os 99 MB de swap, com 27656 páginas empurradas para o cartão
+# e carga 4,5 com CPU ociosa (processos bloqueados em I/O). Isso derruba a rede,
+# porque no BCM2835 o cartão SD e o rádio Wi-Fi dividem o controlador SDIO.
+#
+#   --renderer-process-limit=1   uma página só; não há abas para isolar
+#   --disable-dev-shm-usage      /dev/shm é tmpfs aqui, ou seja, sai da RAM
+#   --js-flags=--max-old-space-size=48   teto do heap do V8, em MB
+#   --disable-extensions         nada de uBlock e afins carregando por nada
+ExecStart=/usr/bin/chromium-browser --kiosk --incognito --disable-infobars --renderer-process-limit=1 --disable-dev-shm-usage --disable-extensions --js-flags=--max-old-space-size=48 http://localhost:3001
+Environment=DISPLAY=:0
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=graphical.target
