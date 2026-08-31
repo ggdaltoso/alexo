@@ -5,6 +5,31 @@ interface PixelatedClockProps {
   size?: number;
 }
 
+/*
+ * O canvas tem 32x32 de verdade e é esticado por CSS até `size`.
+ *
+ * Antes ele era criado já no tamanho final e cada "pixel" virava um fillRect
+ * de size/32 -- com size=120 isso dá 3,75, então os retângulos caíam em
+ * coordenadas fracionárias e o navegador antialiasava as bordas. O
+ * `image-rendering: pixelated` no style não ajudava, porque não havia nada
+ * para ampliar: a imagem já estava na resolução final, só que borrada.
+ *
+ * Desenhando em 32x32 e deixando o CSS ampliar, cada célula é um pixel
+ * inteiro e o `pixelated` faz o vizinho-mais-próximo, que é o visual
+ * pretendido.
+ */
+const GRADE = 32;
+
+// 16.0 é a fronteira entre os pixels 15 e 16, ou seja, o centro real da
+// grade. Medir a partir daqui, amostrando o CENTRO de cada pixel (x + 0.5),
+// é o que mantém o desenho simétrico nos dois eixos.
+const CENTRO = GRADE / 2;
+
+const RAIO = 13.5;
+
+const BRANCO = '#ffffff';
+const PRETO = '#000000';
+
 export default function PixelatedClock({
   date,
   size = 200,
@@ -18,39 +43,31 @@ export default function PixelatedClock({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas dimensions
-    canvas.width = size;
-    canvas.height = size;
+    desenhaFace(ctx);
 
-    // Calculate pixel size (we'll use a 32x32 grid)
-    const pixelSize = size / 32;
+    const horas = date.getHours() % 12;
+    const minutos = date.getMinutes();
 
-    // Draw clock face
-    drawClockFace(ctx, pixelSize);
+    // Ponteiro das horas: mais curto e avança com os minutos.
+    desenhaPonteiro(ctx, ((horas + minutos / 60) * 2 * Math.PI) / 12, 6);
+    desenhaPonteiro(ctx, (minutos * 2 * Math.PI) / 60, 10);
 
-    // Get hours and minutes from the time
-    const hours = date.getHours() % 12;
-    const minutes = date.getMinutes();
-
-    // Draw hour hand
-    drawHourHand(ctx, hours, minutes, pixelSize);
-
-    // Draw minute hand
-    drawMinuteHand(ctx, minutes, pixelSize);
-  }, [date, size]);
+    // O miolo por cima, para cobrir a junção dos dois ponteiros.
+    ctx.fillStyle = PRETO;
+    ctx.fillRect(15, 15, 2, 2);
+  }, [date]);
 
   return (
     <canvas
       ref={canvasRef}
-      width={size}
-      height={size}
-      className="pixelated"
+      width={GRADE}
+      height={GRADE}
       style={{
         imageRendering: 'pixelated',
         width: size,
         height: size,
       }}
-      aria-label={`Pixelated clock showing ${date.toLocaleTimeString([], {
+      aria-label={`Relógio marcando ${date.toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
@@ -59,94 +76,73 @@ export default function PixelatedClock({
   );
 }
 
-function drawClockFace(ctx: CanvasRenderingContext2D, pixelSize: number) {
-  // Clear the canvas first (transparent background)
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+/*
+ * A borda é a casca do disco, e não um anel entre dois raios.
+ *
+ * A versão anterior traçava a borda por amostragem angular -- `for (angle = 0;
+ * angle < 360; angle += 5)` num raio 13, ou seja 72 amostras para uma
+ * circunferência de ~82 px. A borda saía furada (na linha y=10 não havia
+ * contorno nenhum) e a face parava em 12,5 enquanto a borda ficava em 13,
+ * deixando 17 pixels que não eram nem brancos nem pretos: era por ali que o
+ * fundo da página aparecia.
+ *
+ * Um anel definido por dois raios conserta o vazamento mas engorda nas
+ * diagonais: as duas circunferências rasterizam de forma diferente conforme o
+ * ângulo, e a espessura chegava a 3 px nos 45° contra 1 px nos eixos. São os
+ * blocos pretos grossos nos cantos do mostrador.
+ *
+ * Tirando a borda da própria silhueta -- todo pixel do disco que faz fronteira
+ * com o lado de fora -- a espessura passa a ser 1 px por construção, em
+ * qualquer ângulo. E como é a casca de uma região 4-conexa, o contorno é
+ * fechado: não há por onde o fundo alcançar a face.
+ */
+function desenhaFace(ctx: CanvasRenderingContext2D) {
+  ctx.clearRect(0, 0, GRADE, GRADE);
 
-  // Draw a filled white circle for the clock face
-  ctx.fillStyle = '#ffffff';
+  const dentroDoDisco = (x: number, y: number) => {
+    if (x < 0 || x >= GRADE || y < 0 || y >= GRADE) return false;
+    const dx = x + 0.5 - CENTRO;
+    const dy = y + 0.5 - CENTRO;
+    return Math.sqrt(dx * dx + dy * dy) < RAIO;
+  };
 
-  // Fill the inner area of the clock with white
-  for (let y = 4; y < 28; y++) {
-    for (let x = 4; x < 28; x++) {
-      const distX = x - 16;
-      const distY = y - 16;
-      const distance = Math.sqrt(distX * distX + distY * distY);
+  for (let y = 0; y < GRADE; y++) {
+    for (let x = 0; x < GRADE; x++) {
+      if (!dentroDoDisco(x, y)) continue; // fora do relógio: transparente
 
-      if (distance < 12.5) {
-        ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-      }
+      const naBorda =
+        !dentroDoDisco(x - 1, y) ||
+        !dentroDoDisco(x + 1, y) ||
+        !dentroDoDisco(x, y - 1) ||
+        !dentroDoDisco(x, y + 1);
+
+      ctx.fillStyle = naBorda ? PRETO : BRANCO;
+      ctx.fillRect(x, y, 1, 1);
     }
   }
-
-  // Draw black border (continuous circle)
-  ctx.fillStyle = '#000000';
-
-  for (let angle = 0; angle < 360; angle += 5) {
-    const radian = (angle * Math.PI) / 180;
-    const outerX = Math.round(16 + 13 * Math.cos(radian));
-    const outerY = Math.round(16 + 13 * Math.sin(radian));
-    ctx.fillRect(outerX * pixelSize, outerY * pixelSize, pixelSize, pixelSize);
-  }
-
-  // Draw center dot
-  ctx.fillRect(15 * pixelSize, 15 * pixelSize, 2 * pixelSize, 2 * pixelSize);
 }
 
-function drawHourHand(
+/*
+ * Caminha do centro para fora pintando o pixel que contém cada ponto. Meio
+ * pixel por passo garante que não fique buraco na diagonal, e repintar o
+ * mesmo pixel não custa nada nessa escala.
+ *
+ * `angulo` vem com 0 = meio-dia; o -90° põe o zero para cima.
+ */
+function desenhaPonteiro(
   ctx: CanvasRenderingContext2D,
-  hours: number,
-  minutes: number,
-  pixelSize: number,
+  angulo: number,
+  comprimento: number,
 ) {
-  ctx.fillStyle = '#000000';
-  const hourAngle = ((hours + minutes / 60) * (Math.PI * 2)) / 12 - Math.PI / 2;
-  const hourHandLength = 6;
-  const hourX = Math.round(16 + Math.cos(hourAngle) * hourHandLength);
-  const hourY = Math.round(16 + Math.sin(hourAngle) * hourHandLength);
-  drawLine(ctx, 16, 16, hourX, hourY, pixelSize);
-}
+  ctx.fillStyle = PRETO;
 
-function drawMinuteHand(
-  ctx: CanvasRenderingContext2D,
-  minutes: number,
-  pixelSize: number,
-) {
-  ctx.fillStyle = '#000000';
-  const minuteAngle = (minutes * (Math.PI * 2)) / 60 - Math.PI / 2;
-  const minuteHandLength = 10;
-  const minuteX = Math.round(16 + Math.cos(minuteAngle) * minuteHandLength);
-  const minuteY = Math.round(16 + Math.sin(minuteAngle) * minuteHandLength);
-  drawLine(ctx, 16, 16, minuteX, minuteY, pixelSize);
-}
+  const a = angulo - Math.PI / 2;
+  const cos = Math.cos(a);
+  const sen = Math.sin(a);
 
-function drawLine(
-  ctx: CanvasRenderingContext2D,
-  x0: number,
-  y0: number,
-  x1: number,
-  y1: number,
-  pixelSize: number,
-) {
-  const dx = Math.abs(x1 - x0);
-  const dy = Math.abs(y1 - y0);
-  const sx = x0 < x1 ? 1 : -1;
-  const sy = y0 < y1 ? 1 : -1;
-  let err = dx - dy;
-
-  while (true) {
-    ctx.fillRect(x0 * pixelSize, y0 * pixelSize, pixelSize, pixelSize);
-
-    if (x0 === x1 && y0 === y1) break;
-
-    const e2 = 2 * err;
-    if (e2 > -dy) {
-      err -= dy;
-      x0 += sx;
-    }
-    if (e2 < dx) {
-      err += dx;
-      y0 += sy;
-    }
+  for (let r = 0; r <= comprimento; r += 0.5) {
+    const x = Math.floor(CENTRO + cos * r);
+    const y = Math.floor(CENTRO + sen * r);
+    ctx.fillRect(x, y, 1, 1);
   }
 }
