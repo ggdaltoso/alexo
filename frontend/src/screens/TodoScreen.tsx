@@ -1,7 +1,6 @@
 import { useTodoist } from '../hooks/useTodoist';
-import { Frame, TitleBar, Fieldset, Checkbox } from '@react95/core';
+import { Frame, TitleBar, Checkbox } from '@react95/core';
 import { Faxcover108 } from '@react95/icons/Faxcover108';
-import { FilePen } from '@react95/icons/FilePen';
 import { Joy108 } from '@react95/icons/Joy108';
 import { Loader } from 'lucide-react';
 
@@ -38,11 +37,8 @@ export function TodoScreen() {
 
   if (error) {
     return (
-      <div className="p-4">
-        <Frame className="p-4" variant="well">
-          <h2 className="text-red-600 font-bold mb-2">Error</h2>
-          <p className="text-sm mb-4">{error.message}</p>
-        </Frame>
+      <div className="flex justify-center items-center h-full">
+        <div>Erro ao carregar tarefas</div>
       </div>
     );
   }
@@ -58,13 +54,12 @@ export function TodoScreen() {
       h="100%"
     >
       <TitleBar
-        icon={<Faxcover108 variant="16x16_4" className="!w-[24px] !h-[24px]" />}
-        className="text-[20px] h-[28px]"
+        icon={<Faxcover108 variant="16x16_4" />}
         title={`Tarefas de hoje (${completedTasks.length}/${tasks.length})`}
       />
       {/* Main Content */}
       <Frame
-        p="$6"
+        p="$2"
         className="h-full flex flex-col overflow-y-auto"
         variant="window"
       >
@@ -75,15 +70,12 @@ export function TodoScreen() {
         ) : (
           <>
             {tasks.length > 0 && (
-              <Fieldset
-                className="[&>legend]:text-[0.5rem] mb-4 h-full"
-                legend="Tarefas"
-              >
+              <Frame pl="$5" boxShadow="$in" h="100%">
                 <Frame display="flex" flexDirection="column">
                   {[...completedTasks, ...activeTasks].map((task) => (
                     <Frame position="relative" key={task.id}>
                       <Checkbox
-                        className="text-xs h-4 [&>*:nth-child(-n+2)]:w-3 [&>*:nth-child(-n+2)]:h-3 [&>*:nth-child(3)]:p-2 [&>*:nth-child(2)]:!bg-[length:12px]"
+                        className="text-[0.45rem] h-2 [&>*:nth-child(-n+2)]:w-2 [&>*:nth-child(-n+2)]:h-2 [&>*:nth-child(3)]:p-1 [&>*:nth-child(2)]:!bg-[length:8px]"
                         checked={task.is_completed}
                         disabled={task.is_completed}
                         readOnly
@@ -92,7 +84,7 @@ export function TodoScreen() {
                       </Checkbox>
 
                       {task.description && (
-                        <p className="text-[0.5rem] text-gray-600 ml-5 mt-0 ">
+                        <p className="text-[0.35rem] text-gray-600 ml-3.5 mt-0 ">
                           {task.description}
                         </p>
                       )}
@@ -100,19 +92,23 @@ export function TodoScreen() {
                       {isOverdue(task) && (
                         <Frame
                           display="flex"
+                          alignItems="center"
                           gap="$4"
-                          className="text-[0.5rem] ml-[0.9rem] -mt-1 font-semibold"
+                          className="text-[0.3rem] ml-[0.7rem]  font-semibold"
                         >
-                          <Joy108 variant="16x16_4" />
-                          <span className="text-[0.4rem] text-red-800">
-                            Atrasada desde {task.due?.string}
+                          <Joy108
+                            variant="16x16_4"
+                            className="-mt-[0.125rem]"
+                          />
+                          <span className="text-red-800">
+                            Atrasada ({task.due?.string})
                           </span>
                         </Frame>
                       )}
                     </Frame>
                   ))}
                 </Frame>
-              </Fieldset>
+              </Frame>
             )}
           </>
         )}
