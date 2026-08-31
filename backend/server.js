@@ -12,6 +12,7 @@ const { randomUUID } = require('./ids');
 const musicController = require('./musicController');
 const musicCatalog = require('./musicCatalog');
 const nfcReader = require('./nfcReader');
+const servicos = require('./servicos');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -253,6 +254,70 @@ app.post('/api/nfc-tag/simulate', async (req, res) => {
   }
 });
 
+app.get('/api/services', async (req, res) => {
+  try {
+    res.json(await servicos.listar());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Liga, desliga ou reinicia um serviço.
+ *
+ * A unidade nunca vem do pedido -- `chave` é procurada na tabela do
+ * servicos.js. Ver o comentário de lá sobre por que isso importa aqui.
+ */
+app.post('/api/services/:chave/:acao', async (req, res) => {
+  let plano;
+  try {
+    plano = servicos.executar(req.params.chave, req.params.acao);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  // Reiniciar o próprio backend faz o systemd mandar SIGTERM neste processo:
+  // se a gente esperasse o systemctl terminar, a resposta morreria junto e o
+  // admin veria um erro de rede num restart que deu certo. Responde primeiro,
+  // reinicia depois -- a folga é só para o socket esvaziar.
+  if (plano.suicida) {
+    res.json({ ok: true, reiniciandoOBackend: true });
+    setTimeout(() => {
+      plano.rodar().catch((err) => console.error('[servicos] restart falhou:', err.message));
+    }, 250);
+    return;
+  }
+
+  try {
+    await plano.rodar();
+    res.json({ ok: true, servico: await servicos.statusDe(req.params.chave) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Desliga ou reinicia a máquina.
+ *
+ * Sempre responde antes de executar: o systemd derruba este processo junto com
+ * o resto, então esperar o systemctl terminar faria a resposta morrer no meio e
+ * o admin mostraria erro num comando que deu certo. Mesmo motivo do restart do
+ * próprio backend, só que aqui vale para as duas ações.
+ */
+app.post('/api/system/:acao', (req, res) => {
+  let plano;
+  try {
+    plano = servicos.sistema(req.params.acao);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  res.json({ ok: true, rotulo: plano.rotulo, volta: plano.volta });
+  setTimeout(() => {
+    plano.rodar().catch((err) => console.error(`[sistema] ${req.params.acao} falhou:`, err.message));
+  }, 250);
+});
+
 /**
  * Índice do admin.
  *
@@ -302,6 +367,18 @@ app.get('/admin', (req, res) => {
     .acoes { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .5rem; }
     .acoes a { padding: .6rem 1.1rem; background: #3b82f6; color: #fff; border-radius: 6px; text-decoration: none; font-size: .9rem; }
     .acoes a:hover { background: #2563eb; }
+    .linha small { color: #666; font-size: .75rem; font-weight: 400; }
+    .btns { display: flex; gap: .4rem; flex-shrink: 0; }
+    .btns button { padding: .35rem .7rem; background: #2a2a2a; color: #ddd; border: 1px solid #444; border-radius: 5px; font-size: .8rem; cursor: pointer; font-family: inherit; }
+    .btns button:hover:not(:disabled) { border-color: #3b82f6; color: #fff; }
+    .btns button[data-a="stop"]:hover:not(:disabled) { border-color: #f87171; color: #f87171; }
+    .btns button:disabled { opacity: .4; cursor: default; }
+    .nota { color: #666; font-size: .8rem; line-height: 1.5; margin: .75rem 0 0; max-width: 46rem; }
+    .nota code { font-family: ui-monospace, monospace; color: #888; }
+    /* Desligar não tem volta pela rede; a moldura separa isso do resto da página. */
+    .perigo { border-color: #7f1d1d; }
+    .btns button.ruim { border-color: #7f1d1d; color: #f87171; }
+    .btns button.ruim:hover:not(:disabled) { background: #7f1d1d; color: #fff; }
   </style>
 </head>
 <body>
@@ -341,6 +418,31 @@ app.get('/admin', (req, res) => {
     <div class="linha"><span class="k">Volume</span><span class="v" id="pVol">—</span></div>
   </div>
 
+  <h2>Serviços</h2>
+  <div class="card" id="servicos"><div class="linha"><span class="k">carregando…</span></div></div>
+  <p class="nota">
+    Sem autenticação: qualquer um na rede que abrir esta página pode parar os serviços.
+    O Backend não tem botão de parar de propósito — pará-lo mataria o servidor
+    que serve esta página, e só o ssh traria de volta.
+  </p>
+
+  <h2>Máquina</h2>
+  <div class="card perigo">
+    <div class="linha">
+      <span class="k">Reiniciar o Pi<br><small>Volta sozinho em ~1 minuto</small></span>
+      <span class="btns"><button id="btReboot">reiniciar</button></span>
+    </div>
+    <div class="linha">
+      <span class="k">Desligar o Pi<br><small>Só liga de volta presencialmente</small></span>
+      <span class="btns"><button id="btPoweroff" class="ruim">desligar</button></span>
+    </div>
+  </div>
+  <p class="nota">
+    Desligar por aqui é melhor que puxar o cabo: o Pi escreve em segundo plano e
+    um corte no meio de uma escrita corrompe o cartão SD. O <code>poweroff</code>
+    faz sync, desmonta e só então corta.
+  </p>
+
   <script>
     const API = '${apiBase}';
     const $ = (id) => document.getElementById(id);
@@ -348,10 +450,13 @@ app.get('/admin', (req, res) => {
 
     async function tick() {
       try {
-        const [leitor, player] = await Promise.all([
+        const [leitor, player, servicos] = await Promise.all([
           fetch(API + '/api/music/reader').then((r) => r.json()),
           fetch(API + '/api/music/player/status').then((r) => r.json()),
+          fetch(API + '/api/services').then((r) => r.json()),
         ]);
+
+        pinta(servicos);
 
         $('leitorEstado').textContent = leitor.running ? 'ativo' : 'inativo';
         $('leitorEstado').className = 'v ' + (leitor.running ? 'ok' : 'off');
@@ -376,8 +481,95 @@ app.get('/admin', (req, res) => {
       }
     }
 
+    /*
+     * Serviços.
+     *
+     * Redesenhado a cada volta e não só na carga, porque um "stop" daqui muda
+     * o estado e um "restart" do backend muda duas vezes -- cai e volta.
+     */
+    let mexendo = null; // chave em ação: trava os botões e evita o piscar do polling
+
+    function pinta(servicos) {
+      if (mexendo) return;
+      $('servicos').innerHTML = servicos.map((s) => {
+        const ativo = s.estado === 'active';
+        const botoes = [
+          ativo ? '' : '<button data-s="' + s.chave + '" data-a="start">ligar</button>',
+          s.podeParar && ativo ? '<button data-s="' + s.chave + '" data-a="stop">desligar</button>' : '',
+          '<button data-s="' + s.chave + '" data-a="restart">reiniciar</button>',
+        ].join('');
+        return '<div class="linha">' +
+          '<span class="k">' + s.rotulo + '<br><small>' + s.descricao + '</small></span>' +
+          '<span class="v ' + (ativo ? 'ok' : 'off') + '">' + s.estado + (s.sub ? ' (' + s.sub + ')' : '') + '</span>' +
+          '<span class="btns">' + botoes + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+    $('servicos').addEventListener('click', async (ev) => {
+      const b = ev.target.closest('button');
+      if (!b || mexendo) return;
+
+      const chave = b.dataset.s, acao = b.dataset.a;
+      if (acao === 'stop' && !confirm('Desligar ' + chave + '?')) return;
+
+      mexendo = chave;
+      $('servicos').querySelectorAll('button').forEach((x) => (x.disabled = true));
+      b.textContent = '...';
+
+      try {
+        const r = await fetch(API + '/api/services/' + chave + '/' + acao, { method: 'POST' });
+        const corpo = await r.json();
+        if (!r.ok) alert(corpo.error || 'Falhou');
+      } catch (e) {
+        // Reiniciar o backend derruba a conexão às vezes antes da resposta
+        // chegar. Não é erro: o serviço volta e o polling reencontra.
+        if (chave !== 'alexo') alert('Falhou: ' + e.message);
+      }
+
+      mexendo = null;
+      // O systemd leva um instante para assentar; ler cedo mostra o estado velho.
+      setTimeout(tick, 1200);
+    });
+
+    /*
+     * Máquina.
+     *
+     * Desligar não tem volta pelo admin, então a confirmação diz isso com
+     * todas as letras em vez de um "tem certeza?" genérico. Depois de mandar,
+     * o polling para: ficar tentando buscar status de uma maquina que esta
+     * caindo so encheria o console de erro.
+     */
+    async function maquina(acao, pergunta) {
+      if (!confirm(pergunta)) return;
+
+      try {
+        const r = await fetch(API + '/api/system/' + acao, { method: 'POST' });
+        const corpo = await r.json();
+        if (!r.ok) return alert(corpo.error || 'Falhou');
+      } catch (e) {
+        // A máquina pode cair antes da resposta chegar; não é erro.
+      }
+
+      clearInterval(pulso);
+      document.querySelectorAll('button').forEach((b) => (b.disabled = true));
+      $('servicos').innerHTML =
+        '<div class="linha"><span class="k">' +
+        (acao === 'reboot'
+          ? 'Reiniciando… recarregue a página em cerca de um minuto.'
+          : 'Desligando. Para ligar de novo é preciso ir até o Pi.') +
+        '</span></div>';
+    }
+
+    $('btReboot').addEventListener('click', () =>
+      maquina('reboot', 'Reiniciar o Pi? A tela apaga e volta em cerca de um minuto.'));
+
+    $('btPoweroff').addEventListener('click', () =>
+      maquina('poweroff', 'DESLIGAR o Pi?\\n\\nNão há como ligar de volta pela rede: ' +
+        'o Zero W não tem wake-on-LAN. Só indo até ele.'));
+
     tick();
-    setInterval(tick, 2000);
+    const pulso = setInterval(tick, 2000);
   </script>
 </body>
 </html>`);
