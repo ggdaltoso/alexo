@@ -20,12 +20,16 @@ on it, Tonie/Yoto style.
 
 The screen is split in two: the photo gallery on the left, the rotating screens on the right.
 
-| Clock | Weather Forecast | Exchange Rate |
-|:---:|:---:|:---:|
-| ![Clock](screens/clock.png) | ![Forecast](screens/forecast.png) | ![Exchange Rate](screens/exchange-rate.png) |
+| Clock | Weather Forecast |
+|:---:|:---:|
+| ![Clock](screens/clock.png) | ![Forecast](screens/forecast.png) |
 
-These three rotate on a 10-second carousel. Calendar, Todoist and the NFC message screen exist as
-routes but are not part of the rotation.
+| Exchange Rate | Todoist |
+|:---:|:---:|
+| ![Exchange Rate](screens/exchange-rate.png) | ![Todoist](screens/todoist.png) |
+
+These four rotate on a 10-second carousel. Calendar and the NFC message screen exist as routes but
+are not part of the rotation.
 
 When music is playing, a player panel takes the bottom of the left column and the gallery shrinks
 to make room. It disappears a minute after the music stops, and the gallery grows back. The title
@@ -630,10 +634,6 @@ free -m                           # swap full = trouble ahead
 > session and returns a confusing error. Kill by PID instead.
 
 ## Roadmap
-
-**Todoist screen stopped working.** The integration is still wired up and the route exists, but the
-screen no longer renders tasks. Not yet diagnosed — likely the API token or a change on Todoist's
-side. It is out of the carousel rotation, so nothing else is affected.
 
 **Manage music from the admin.** Albums currently reach the device by `scp` into
 `backend/uploads/music/`, followed by `node backend/scripts/import-music.js` over ssh. The gallery
