@@ -25,8 +25,7 @@ const GRADE = 32;
 // é o que mantém o desenho simétrico nos dois eixos.
 const CENTRO = GRADE / 2;
 
-const RAIO_FACE = 12.0;
-const RAIO_BORDA = 13.5;
+const RAIO = 13.5;
 
 const BRANCO = '#ffffff';
 const PRETO = '#000000';
@@ -78,36 +77,46 @@ export default function PixelatedClock({
 }
 
 /*
- * Face e borda saem de uma classificação única por distância, em vez de
- * pintar a face e depois traçar a borda por amostragem angular.
+ * A borda é a casca do disco, e não um anel entre dois raios.
  *
- * A versão anterior fazia `for (angle = 0; angle < 360; angle += 5)` num raio
- * 13: são 72 amostras para uma circunferência de ~82 px, então a borda saía
- * furada -- na linha y=10 não havia contorno nenhum. E a face parava em
- * `distance < 12.5` enquanto a borda ficava em 13, deixando 17 pixels no meio
- * que não eram nem brancos nem pretos: era por ali que o fundo da página
- * aparecia.
+ * A versão anterior traçava a borda por amostragem angular -- `for (angle = 0;
+ * angle < 360; angle += 5)` num raio 13, ou seja 72 amostras para uma
+ * circunferência de ~82 px. A borda saía furada (na linha y=10 não havia
+ * contorno nenhum) e a face parava em 12,5 enquanto a borda ficava em 13,
+ * deixando 17 pixels que não eram nem brancos nem pretos: era por ali que o
+ * fundo da página aparecia.
  *
- * Classificando cada pixel uma vez só, os dois defeitos somem por construção:
- * não existe pixel entre a face e a borda, e a borda não tem como ter furos.
+ * Um anel definido por dois raios conserta o vazamento mas engorda nas
+ * diagonais: as duas circunferências rasterizam de forma diferente conforme o
+ * ângulo, e a espessura chegava a 3 px nos 45° contra 1 px nos eixos. São os
+ * blocos pretos grossos nos cantos do mostrador.
+ *
+ * Tirando a borda da própria silhueta -- todo pixel do disco que faz fronteira
+ * com o lado de fora -- a espessura passa a ser 1 px por construção, em
+ * qualquer ângulo. E como é a casca de uma região 4-conexa, o contorno é
+ * fechado: não há por onde o fundo alcançar a face.
  */
 function desenhaFace(ctx: CanvasRenderingContext2D) {
   ctx.clearRect(0, 0, GRADE, GRADE);
 
+  const dentroDoDisco = (x: number, y: number) => {
+    if (x < 0 || x >= GRADE || y < 0 || y >= GRADE) return false;
+    const dx = x + 0.5 - CENTRO;
+    const dy = y + 0.5 - CENTRO;
+    return Math.sqrt(dx * dx + dy * dy) < RAIO;
+  };
+
   for (let y = 0; y < GRADE; y++) {
     for (let x = 0; x < GRADE; x++) {
-      const dx = x + 0.5 - CENTRO;
-      const dy = y + 0.5 - CENTRO;
-      const distancia = Math.sqrt(dx * dx + dy * dy);
+      if (!dentroDoDisco(x, y)) continue; // fora do relógio: transparente
 
-      if (distancia < RAIO_FACE) {
-        ctx.fillStyle = BRANCO;
-      } else if (distancia < RAIO_BORDA) {
-        ctx.fillStyle = PRETO;
-      } else {
-        continue; // fora do relógio: fica transparente
-      }
+      const naBorda =
+        !dentroDoDisco(x - 1, y) ||
+        !dentroDoDisco(x + 1, y) ||
+        !dentroDoDisco(x, y - 1) ||
+        !dentroDoDisco(x, y + 1);
 
+      ctx.fillStyle = naBorda ? PRETO : BRANCO;
       ctx.fillRect(x, y, 1, 1);
     }
   }
