@@ -122,4 +122,36 @@ function executar(chave, acao) {
   return { suicida, rodar };
 }
 
-module.exports = { SERVICOS, ACOES, listar, statusDe, executar };
+/*
+ * Desligar e reiniciar a máquina.
+ *
+ * Existe porque a alternativa era puxar o cabo. O Pi escreve em segundo plano
+ * -- journald, state.json, swap -- e cortar a energia no meio de uma escrita
+ * corrompe o cartão SD. O poweroff faz sync, desmonta e só então corta.
+ *
+ * Assimetria que importa: `reboot` volta sozinho, `poweroff` não. O Zero W não
+ * tem wake-on-LAN nem botão de liga, então depois de desligado só presencial-
+ * mente. Quem chama precisa deixar isso explícito para quem clica.
+ */
+const SISTEMA = {
+  reboot: {
+    rotulo: 'Reiniciar o Pi',
+    argumentos: ['reboot'],
+    volta: true,
+  },
+  poweroff: {
+    rotulo: 'Desligar o Pi',
+    argumentos: ['poweroff'],
+    volta: false,
+  },
+};
+
+function sistema(acao) {
+  const alvo = SISTEMA[acao];
+  if (!alvo) throw new Error(`Ação de sistema desconhecida: ${acao}`);
+  // Sempre "suicida": a máquina inteira cai, então a resposta HTTP tem de sair
+  // antes. Ver o comentário da rota no server.js.
+  return { rotulo: alvo.rotulo, volta: alvo.volta, rodar: () => systemctl(alvo.argumentos) };
+}
+
+module.exports = { SERVICOS, ACOES, SISTEMA, listar, statusDe, executar, sistema };

@@ -297,6 +297,28 @@ app.post('/api/services/:chave/:acao', async (req, res) => {
 });
 
 /**
+ * Desliga ou reinicia a máquina.
+ *
+ * Sempre responde antes de executar: o systemd derruba este processo junto com
+ * o resto, então esperar o systemctl terminar faria a resposta morrer no meio e
+ * o admin mostraria erro num comando que deu certo. Mesmo motivo do restart do
+ * próprio backend, só que aqui vale para as duas ações.
+ */
+app.post('/api/system/:acao', (req, res) => {
+  let plano;
+  try {
+    plano = servicos.sistema(req.params.acao);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  res.json({ ok: true, rotulo: plano.rotulo, volta: plano.volta });
+  setTimeout(() => {
+    plano.rodar().catch((err) => console.error(`[sistema] ${req.params.acao} falhou:`, err.message));
+  }, 250);
+});
+
+/**
  * Índice do admin.
  *
  * Server-rendered como as outras páginas de admin, mas os blocos que mudam
@@ -352,6 +374,11 @@ app.get('/admin', (req, res) => {
     .btns button[data-a="stop"]:hover:not(:disabled) { border-color: #f87171; color: #f87171; }
     .btns button:disabled { opacity: .4; cursor: default; }
     .nota { color: #666; font-size: .8rem; line-height: 1.5; margin: .75rem 0 0; max-width: 46rem; }
+    .nota code { font-family: ui-monospace, monospace; color: #888; }
+    /* Desligar não tem volta pela rede; a moldura separa isso do resto da página. */
+    .perigo { border-color: #7f1d1d; }
+    .btns button.ruim { border-color: #7f1d1d; color: #f87171; }
+    .btns button.ruim:hover:not(:disabled) { background: #7f1d1d; color: #fff; }
   </style>
 </head>
 <body>
@@ -397,6 +424,23 @@ app.get('/admin', (req, res) => {
     Sem autenticação: qualquer um na rede que abrir esta página pode parar os serviços.
     O Backend não tem botão de parar de propósito — pará-lo mataria o servidor
     que serve esta página, e só o ssh traria de volta.
+  </p>
+
+  <h2>Máquina</h2>
+  <div class="card perigo">
+    <div class="linha">
+      <span class="k">Reiniciar o Pi<br><small>Volta sozinho em ~1 minuto</small></span>
+      <span class="btns"><button id="btReboot">reiniciar</button></span>
+    </div>
+    <div class="linha">
+      <span class="k">Desligar o Pi<br><small>Só liga de volta presencialmente</small></span>
+      <span class="btns"><button id="btPoweroff" class="ruim">desligar</button></span>
+    </div>
+  </div>
+  <p class="nota">
+    Desligar por aqui é melhor que puxar o cabo: o Pi escreve em segundo plano e
+    um corte no meio de uma escrita corrompe o cartão SD. O <code>poweroff</code>
+    faz sync, desmonta e só então corta.
   </p>
 
   <script>
@@ -488,8 +532,44 @@ app.get('/admin', (req, res) => {
       setTimeout(tick, 1200);
     });
 
+    /*
+     * Máquina.
+     *
+     * Desligar não tem volta pelo admin, então a confirmação diz isso com
+     * todas as letras em vez de um "tem certeza?" genérico. Depois de mandar,
+     * o polling para: ficar tentando buscar status de uma maquina que esta
+     * caindo so encheria o console de erro.
+     */
+    async function maquina(acao, pergunta) {
+      if (!confirm(pergunta)) return;
+
+      try {
+        const r = await fetch(API + '/api/system/' + acao, { method: 'POST' });
+        const corpo = await r.json();
+        if (!r.ok) return alert(corpo.error || 'Falhou');
+      } catch (e) {
+        // A máquina pode cair antes da resposta chegar; não é erro.
+      }
+
+      clearInterval(pulso);
+      document.querySelectorAll('button').forEach((b) => (b.disabled = true));
+      $('servicos').innerHTML =
+        '<div class="linha"><span class="k">' +
+        (acao === 'reboot'
+          ? 'Reiniciando… recarregue a página em cerca de um minuto.'
+          : 'Desligando. Para ligar de novo é preciso ir até o Pi.') +
+        '</span></div>';
+    }
+
+    $('btReboot').addEventListener('click', () =>
+      maquina('reboot', 'Reiniciar o Pi? A tela apaga e volta em cerca de um minuto.'));
+
+    $('btPoweroff').addEventListener('click', () =>
+      maquina('poweroff', 'DESLIGAR o Pi?\\n\\nNão há como ligar de volta pela rede: ' +
+        'o Zero W não tem wake-on-LAN. Só indo até ele.'));
+
     tick();
-    setInterval(tick, 2000);
+    const pulso = setInterval(tick, 2000);
   </script>
 </body>
 </html>`);
