@@ -48,7 +48,31 @@ const TIMEOUT = 15000;
  */
 let emCurso = null;
 
-/** Captura a tela e devolve o PNG como Buffer. Lança se o X não responder. */
+/*
+ * A última captura fica em memória.
+ *
+ * É o que faz "guardar no Pi" salvar exatamente a imagem que está no preview, e
+ * não uma nova: entre olhar e clicar em guardar passa o tempo de escrever a
+ * nota, e o relógio da tela já mudou. Guardar o buffer também evita reler o
+ * /dev/shm, que a essa altura pode ter sido sobrescrito por outra captura.
+ *
+ * É um buffer só, trocado a cada captura -- ~100 KB que não acumulam. Num Pi
+ * onde o Chromium roda com 48 MB de heap, isso importa o suficiente para valer
+ * a frase, e pouco o suficiente para não valer mais que isso.
+ */
+let ultima = null;
+
+/** A última captura, ou null se ainda não houve nenhuma desde que o backend subiu. */
+function ultimaCaptura() {
+  return ultima;
+}
+
+/**
+ * Captura a tela. Resolve `{ png, em }` -- o Buffer e a hora da captura.
+ *
+ * A hora vai junto porque é ela, e não a hora de gravar, que descreve o que está
+ * na imagem. Lança se o X não responder.
+ */
 function capturar() {
   if (emCurso) return emCurso;
 
@@ -71,7 +95,8 @@ function capturar() {
         }
         fs.readFile(ARQUIVO, (erroLeitura, png) => {
           if (erroLeitura) return reject(erroLeitura);
-          resolve(png);
+          ultima = { png, em: new Date().toISOString() };
+          resolve(ultima);
         });
       },
     );
@@ -85,4 +110,4 @@ function capturar() {
   return emCurso;
 }
 
-module.exports = { capturar, ARQUIVO };
+module.exports = { capturar, ultimaCaptura, ARQUIVO };
