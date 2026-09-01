@@ -46,6 +46,10 @@ README came from prints taken on the device itself. Keeping that history is deli
 dashboard changes in ways that only a picture records. The screen resolution went from 708×480 to
 480×320 at one point, and nothing but the old captures says so.
 
+There is a demo recording too — [`videos/2025-12-16-demo.mp4`](videos/2025-12-16-demo.mp4), 40
+seconds of the dashboard running, from December 2025. It is a relic by now: the clock, the gallery
+and the music player all changed after it. New recordings go in the same folder, named by date.
+
 The pipeline, from the device to this file:
 
 1. **Capture** — `/admin`, *Tela*, "tirar print". Shows the screen; writes nothing.
@@ -662,6 +666,8 @@ alexo/
 │   ├── contexts/            # AppContext: WebSocket, navigation, timer
 │   ├── hooks/ services/ config/
 │   └── index.css            # global styles, marquee, screen dimming
+├── screens/                 # curated stills used by this README
+├── videos/                  # demo recordings, named by date
 ├── deploy/systemd/          # versioned units
 ├── scripts/                 # deploy.sh, prints-pull.sh, wifi-*.sh
 └── package.json
