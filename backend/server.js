@@ -368,6 +368,15 @@ app.get('/admin', (req, res) => {
     .acoes a { padding: .6rem 1.1rem; background: #3b82f6; color: #fff; border-radius: 6px; text-decoration: none; font-size: .9rem; }
     .acoes a:hover { background: #2563eb; }
     .linha small { color: #666; font-size: .75rem; font-weight: 400; }
+    /* Indicador de status ao lado do nome. O estado por extenso fica no title:
+       o ponto nao distingue "inactive" de "failed", e essa diferenca importa. */
+    .pt { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; margin-right: .5rem; vertical-align: middle; }
+    .pt-ok { background: #6ee7b7; }
+    .pt-erro { background: #f87171; }
+    .pt-off { background: #555; }
+    .pt-meio { background: #fbbf24; }
+    /* Alinha a descricao sob o rotulo, e nao sob o ponto (0,5rem + 0,5rem). */
+    .linha .k small { display: inline-block; padding-left: 1rem; }
     .btns { display: flex; gap: .4rem; flex-shrink: 0; }
     .btns button { padding: .35rem .7rem; background: #2a2a2a; color: #ddd; border: 1px solid #444; border-radius: 5px; font-size: .8rem; cursor: pointer; font-family: inherit; }
     .btns button:hover:not(:disabled) { border-color: #3b82f6; color: #fff; }
@@ -489,6 +498,13 @@ app.get('/admin', (req, res) => {
      */
     let mexendo = null; // chave em ação: trava os botões e evita o piscar do polling
 
+    // Estado do systemd -> cor do ponto. O que nao estiver aqui (activating,
+    // deactivating, desconhecido) cai no amarelo: e transitorio ou ilegivel,
+    // e nos dois casos "nem verde nem vermelho" e a leitura honesta.
+    const COR_DO_ESTADO = { active: 'pt-ok', failed: 'pt-erro', inactive: 'pt-off' };
+
+    const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
     function pinta(servicos) {
       if (mexendo) return;
       $('servicos').innerHTML = servicos.map((s) => {
@@ -498,9 +514,20 @@ app.get('/admin', (req, res) => {
           s.podeParar && ativo ? '<button data-s="' + s.chave + '" data-a="stop">desligar</button>' : '',
           '<button data-s="' + s.chave + '" data-a="restart">reiniciar</button>',
         ].join('');
+
+        // O estado completo vai no title: o ponto sozinho nao distingue
+        // "inactive" de "failed", e e justamente essa diferenca que interessa
+        // quando alguma coisa quebrou. Escapado porque o erro vem do stderr do
+        // systemctl e pode conter aspas.
+        const titulo = esc(
+          s.estado + (s.sub ? ' (' + s.sub + ')' : '') + (s.erro ? ' — ' + s.erro : ''),
+        );
+
         return '<div class="linha">' +
-          '<span class="k">' + s.rotulo + '<br><small>' + s.descricao + '</small></span>' +
-          '<span class="v ' + (ativo ? 'ok' : 'off') + '">' + s.estado + (s.sub ? ' (' + s.sub + ')' : '') + '</span>' +
+          '<span class="k">' +
+            '<span class="pt ' + (COR_DO_ESTADO[s.estado] || 'pt-meio') + '" title="' + titulo + '"></span>' +
+            esc(s.rotulo) + '<br><small>' + esc(s.descricao) + '</small>' +
+          '</span>' +
           '<span class="btns">' + botoes + '</span>' +
           '</div>';
       }).join('');
