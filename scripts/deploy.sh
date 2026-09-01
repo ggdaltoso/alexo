@@ -190,10 +190,23 @@ sync_part() {
 }
 
 # backend: código + package.json. data/ e uploads/ ficam intactos no Pi.
-sync_part "backend — código e package.json (data/, uploads/ e node_modules/ preservados)" \
+#
+# O package-lock.json fica de fora, e não é economia de banda: mandá-lo não
+# pina nada e ainda cria um ping-pong. O lock do repo é lockfileVersion 3, que
+# traz só o campo `packages`; o npm 6 do Pi não entende esse formato -- não há
+# o `dependencies` legado para ele ler. Então ele descarta o arquivo, resolve
+# pelo package.json e escreve um lock v1 no lugar. O deploy seguinte manda o v3
+# de volta e a conta recomeça: uma reescrita no cartão SD a cada deploy, para
+# um arquivo que aquele npm nunca conseguiu usar.
+#
+# Deixando o lock do Pi em paz, ele fica com o v1 que o próprio npm 6 gerou --
+# o único que aquele npm de fato lê. Ou seja, o Pi passa a instalar de forma
+# MAIS reproduzível do que antes, não menos.
+sync_part "backend — código e package.json (data/, uploads/, node_modules/ e o lock do Pi preservados)" \
   --exclude 'node_modules/' \
   --exclude 'data/' \
   --exclude 'uploads/' \
+  --exclude 'package-lock.json' \
   backend/ "$HOST:$REMOTE_PATH/backend/"
 
 # frontend: só o bundle (viteSingleFile gera um index.html único)
