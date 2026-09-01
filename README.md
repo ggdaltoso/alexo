@@ -390,13 +390,28 @@ POST /api/nfc                         {type, message}
 Unrelated to the music player despite the name: this is for an external device (a phone) pushing a
 message to the screen. The two NFC paths are deliberately independent.
 
+### System
+
+```
+GET    /api/services                  systemd state of the four units
+POST   /api/services/:key/:action     start|stop|restart  (key, never a unit name)
+POST   /api/system/:action            reboot|poweroff
+GET    /api/system/screenshot         PNG of whatever the display shows now
+```
+
+The screenshot is `scrot` on `DISPLAY=:0` — the same command behind the `screenshot` alias in the
+Pi's `~/.bashrc`. The alias itself cannot be reused: aliases only exist in interactive shells, and
+the backend runs the binary directly with no shell in between. It grabs the whole X server rather
+than the Chromium window, so with `alexo-display` stopped the capture still succeeds and comes back
+empty. Takes about a second on the Zero W, and one capture runs at a time.
+
 ### Admin pages
 
 Server-rendered, no build step, no auth — they are meant for a device on your own network.
 
 | Page | Purpose |
 |---|---|
-| `/admin` | Dashboard: content counts, reader state, what is playing |
+| `/admin` | Dashboard: content counts, reader state, what is playing, service and machine controls, screen capture |
 | `/admin/music` | Tag → album mapping, player controls, catalogue re-import |
 | `/admin/gallery` | Photo upload and ordering |
 
@@ -600,6 +615,8 @@ alexo/
 │   ├── musicController.js   # NFC ←→ player glue
 │   ├── musicCatalog.js      # disk → catalogue
 │   ├── ids.js               # UUID v4 without crypto.randomUUID
+│   ├── servicos.js          # systemd units, reboot, poweroff
+│   ├── tela.js              # screen capture via scrot
 │   ├── scripts/             # bench tools
 │   ├── data/                # JSON state (never deployed)
 │   └── uploads/             # photos and MP3s (never deployed)

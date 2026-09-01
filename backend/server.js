@@ -13,6 +13,7 @@ const musicController = require('./musicController');
 const musicCatalog = require('./musicCatalog');
 const nfcReader = require('./nfcReader');
 const servicos = require('./servicos');
+const tela = require('./tela');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -319,6 +320,31 @@ app.post('/api/system/:acao', (req, res) => {
 });
 
 /**
+ * Print da tela do Pi.
+ *
+ * GET porque o que volta é a imagem, e não o resultado de uma ação: abrir a URL
+ * no navegador já mostra a tela do Pi, sem admin e sem JS no meio. Não colide
+ * com o `POST /api/system/:acao` acima -- método diferente, e `screenshot` não
+ * é uma ação da tabela de lá.
+ *
+ * A captura leva ~0,8 s neste Pi. O erro vai como JSON mesmo numa rota que
+ * responde PNG: quem chama precisa conseguir ler o motivo, e "Can't open X
+ * display" é a diferença entre "o display caiu" e "o backend caiu".
+ */
+app.get('/api/system/screenshot', async (req, res) => {
+  try {
+    const png = await tela.capturar();
+    res.type('png');
+    // Retrato de um instante: guardar em cache é justamente o que não serve.
+    res.set('Cache-Control', 'no-store');
+    res.send(png);
+  } catch (err) {
+    console.error('[tela] print falhou:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * Índice do admin.
  *
  * Server-rendered como as outras páginas de admin, mas os blocos que mudam
@@ -384,6 +410,13 @@ app.get('/admin', (req, res) => {
     .btns button:disabled { opacity: .4; cursor: default; }
     .nota { color: #666; font-size: .8rem; line-height: 1.5; margin: .75rem 0 0; max-width: 46rem; }
     .nota code { font-family: ui-monospace, monospace; color: #888; }
+    /* O print só aparece depois do primeiro clique; nascer vazio deixaria um
+       buraco no card. Largura fixa em 480 (o tamanho real da tela) e pixelated:
+       a UI do Alexo é pixelada de propósito, e deixar o navegador suavizar na
+       escala mostraria uma tela que não é a que está lá. */
+    #print { display: none; padding-top: 1rem; }
+    #print img { display: block; width: 480px; max-width: 100%; image-rendering: pixelated; border: 1px solid #333; border-radius: 4px; }
+    #print a { display: inline-block; margin-top: .6rem; color: #3b82f6; font-size: .85rem; }
     /* Desligar não tem volta pela rede; a moldura separa isso do resto da página. */
     .perigo { border-color: #7f1d1d; }
     .btns button.ruim { border-color: #7f1d1d; color: #f87171; }
@@ -433,6 +466,20 @@ app.get('/admin', (req, res) => {
     Sem autenticação: qualquer um na rede que abrir esta página pode parar os serviços.
     O Backend não tem botão de parar de propósito — pará-lo mataria o servidor
     que serve esta página, e só o ssh traria de volta.
+  </p>
+
+  <h2>Tela</h2>
+  <div class="card">
+    <div class="linha">
+      <span class="k">Print da tela<br><small>O que o display está mostrando agora, 480×320</small></span>
+      <span class="btns"><button id="btPrint">tirar print</button></span>
+    </div>
+    <div id="print"></div>
+  </div>
+  <p class="nota">
+    É o mesmo <code>scrot</code> do alias <code>screenshot</code> do Pi, rodado
+    pelo backend. Ele fotografa o servidor X inteiro, não o Chromium: com o
+    Display (kiosk) parado o print sai, só que vazio.
   </p>
 
   <h2>Máquina</h2>
@@ -557,6 +604,52 @@ app.get('/admin', (req, res) => {
       mexendo = null;
       // O systemd leva um instante para assentar; ler cedo mostra o estado velho.
       setTimeout(tick, 1200);
+    });
+
+    /*
+     * Print da tela.
+     *
+     * A captura leva ~0,8 s no Zero W, então o botão precisa dizer que está
+     * fazendo alguma coisa: sem isso o clique parece não ter pegado e vira dois
+     * cliques. Desabilitar durante a captura é a mesma ideia do "mexendo" dos
+     * serviços, e casa com a trava que o backend já tem.
+     *
+     * A imagem vem como blob em vez de <img src="/api/system/screenshot">
+     * porque o link de salvar aproveita o mesmo objeto -- com src apontando
+     * para a rota, salvar dispararia uma segunda captura e o arquivo salvo
+     * seria de um instante diferente do que está na tela.
+     */
+    let urlDoPrint = null;
+
+    $('btPrint').addEventListener('click', async () => {
+      const b = $('btPrint');
+      b.disabled = true;
+      b.textContent = 'capturando…';
+
+      try {
+        const r = await fetch(API + '/api/system/screenshot');
+        // O erro vem em JSON mesmo numa rota que responde PNG; ver a rota.
+        if (!r.ok) {
+          const corpo = await r.json().catch(() => ({}));
+          throw new Error(corpo.error || 'Falhou');
+        }
+
+        // Sem o revoke o blob anterior fica preso na memória do navegador até
+        // fechar a aba, e são ~80 KB por clique.
+        if (urlDoPrint) URL.revokeObjectURL(urlDoPrint);
+        urlDoPrint = URL.createObjectURL(await r.blob());
+
+        const nome = 'alexo-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.png';
+        $('print').innerHTML =
+          '<img src="' + urlDoPrint + '" alt="Print da tela do Pi" />' +
+          '<a href="' + urlDoPrint + '" download="' + nome + '">salvar ' + nome + '</a>';
+        $('print').style.display = 'block';
+      } catch (e) {
+        alert('Não deu para tirar o print: ' + e.message);
+      }
+
+      b.disabled = false;
+      b.textContent = 'tirar print';
     });
 
     /*
