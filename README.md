@@ -39,6 +39,33 @@ scrolls because an album name plus a track name never fits 240 pixels.
 |:---:|:---:|
 | ![Music Player](screens/music-player.png) | ![Music Player](screens/music-player-exchange.png) |
 
+### Visual history
+
+The screenshots above are not mockups — they are real captures off the Pi, and the ones in this
+README came from prints taken on the device itself. Keeping that history is deliberate: a 3.5"
+dashboard changes in ways that only a picture records. The screen resolution went from 708×480 to
+480×320 at one point, and nothing but the old captures says so.
+
+The pipeline, from the device to this file:
+
+1. **Capture** — `/admin`, *Tela*, "tirar print". Shows the screen; writes nothing.
+2. **Keep** — "guardar no Pi", with a one-line note. Only then does a file exist.
+3. **Back up** — `npm run prints:pull` copies them off the SD card into `./prints/` (gitignored).
+4. **Publish** — copy the one worth showing into `screens/` and reference it here, by hand.
+
+Capture and keep are separate on purpose. The `screenshot` alias always wrote a file, which is how
+a pile of them accumulated in the Pi's home directory over two years with nobody deciding to keep
+any of them.
+
+Saved prints live in `backend/uploads/prints/YYYY-MM/`, indexed by `backend/data/prints.json` —
+the same split the gallery already uses, and the same two directories the deploy never touches. The
+index holds what a filename cannot: the note, the resolution, and what was playing at the time.
+
+The captures that predate this — the `2026-08-25-134112_480x320_scrot.png` kind, sitting loose in
+the Pi's home directory since 2025 — were imported into that structure once, with a throwaway
+script. Their date came from the filename and their resolution from the PNG header, so the two
+708×480 ones still record the screen the project started with.
+
 ## The music player
 
 A PN532 NFC reader is wired to the Pi. Each tag maps to a **folder of MP3s** — an album, not a
@@ -390,15 +417,38 @@ POST /api/nfc                         {type, message}
 Unrelated to the music player despite the name: this is for an external device (a phone) pushing a
 message to the screen. The two NFC paths are deliberately independent.
 
+### System
+
+```
+GET    /api/services                  systemd state of the four units
+POST   /api/services/:key/:action     start|stop|restart  (key, never a unit name)
+POST   /api/system/:action            reboot|poweroff
+GET    /api/system/screenshot         PNG of whatever the display shows now
+```
+
+```
+GET    /api/prints                    saved prints, newest first, plus a size summary
+POST   /api/prints                    {em, nota}  keeps the print currently in the preview
+PUT    /api/prints/:id                {nota}      re-annotate a saved print
+DELETE /api/prints/:id                removes the entry and the file
+```
+
+The screenshot is `scrot` on `DISPLAY=:0` — the same command behind the `screenshot` alias in the
+Pi's `~/.bashrc`. The alias itself cannot be reused: aliases only exist in interactive shells, and
+the backend runs the binary directly with no shell in between. It grabs the whole X server rather
+than the Chromium window, so with `alexo-display` stopped the capture still succeeds and comes back
+empty. Takes about a second on the Zero W, and one capture runs at a time.
+
 ### Admin pages
 
 Server-rendered, no build step, no auth — they are meant for a device on your own network.
 
 | Page | Purpose |
 |---|---|
-| `/admin` | Dashboard: content counts, reader state, what is playing |
+| `/admin` | Dashboard: content counts, reader state, what is playing, service and machine controls, screen capture |
 | `/admin/music` | Tag → album mapping, player controls, catalogue re-import |
 | `/admin/gallery` | Photo upload and ordering |
+| `/admin/prints` | Saved screen captures, grouped by month |
 
 | Dashboard | Gallery |
 |:---:|:---:|
@@ -600,6 +650,9 @@ alexo/
 │   ├── musicController.js   # NFC ←→ player glue
 │   ├── musicCatalog.js      # disk → catalogue
 │   ├── ids.js               # UUID v4 without crypto.randomUUID
+│   ├── servicos.js          # systemd units, reboot, poweroff
+│   ├── tela.js              # screen capture via scrot
+│   ├── prints.js            # saved captures: files + index
 │   ├── scripts/             # bench tools
 │   ├── data/                # JSON state (never deployed)
 │   └── uploads/             # photos and MP3s (never deployed)
@@ -610,7 +663,7 @@ alexo/
 │   ├── hooks/ services/ config/
 │   └── index.css            # global styles, marquee, screen dimming
 ├── deploy/systemd/          # versioned units
-├── scripts/                 # deploy.sh, wifi-monitor.sh, wifi-resumo.sh
+├── scripts/                 # deploy.sh, prints-pull.sh, wifi-*.sh
 └── package.json
 ```
 
@@ -622,6 +675,10 @@ sudo systemctl restart alexo alexo-display
 journalctl -u alexo.service -f
 journalctl -u wifi-monitor -f
 npm run wifi                      # summarise the Wi-Fi log instead of reading it
+
+# prints
+npm run prints:pull               # copy the saved prints off the Pi into ./prints/
+npm run prints:pull -- --dry-run
 
 # hardware checks
 i2cdetect -y 3                    # NFC reader answers at 0x24

@@ -34,3 +34,7 @@ dist-ssr
 frontend/dist
 backend/data
 backend/uploads
+
+# Histórico de prints trazido do Pi (npm run prints:pull).
+# O original vive no Pi; o que entra no repo é curadoria manual, em screens/.
+/prints

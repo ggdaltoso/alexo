@@ -13,6 +13,8 @@ const musicController = require('./musicController');
 const musicCatalog = require('./musicCatalog');
 const nfcReader = require('./nfcReader');
 const servicos = require('./servicos');
+const tela = require('./tela');
+const prints = require('./prints');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -48,6 +50,9 @@ if (NODE_ENV === 'development') {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // Sem isto o fetch em dev enxerga o cabeçalho como null: por padrão o CORS
+    // só entrega os cabeçalhos simples, e X-Print-Em não é um deles.
+    res.header('Access-Control-Expose-Headers', 'X-Print-Em');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
   });
@@ -319,6 +324,113 @@ app.post('/api/system/:acao', (req, res) => {
 });
 
 /**
+ * Print da tela do Pi.
+ *
+ * GET porque o que volta é a imagem, e não o resultado de uma ação: abrir a URL
+ * no navegador já mostra a tela do Pi, sem admin e sem JS no meio. Não colide
+ * com o `POST /api/system/:acao` acima -- método diferente, e `screenshot` não
+ * é uma ação da tabela de lá.
+ *
+ * A captura leva ~0,8 s neste Pi. O erro vai como JSON mesmo numa rota que
+ * responde PNG: quem chama precisa conseguir ler o motivo, e "Can't open X
+ * display" é a diferença entre "o display caiu" e "o backend caiu".
+ */
+app.get('/api/system/screenshot', async (req, res) => {
+  try {
+    const { png, em } = await tela.capturar();
+    res.type('png');
+    // Retrato de um instante: guardar em cache é justamente o que não serve.
+    res.set('Cache-Control', 'no-store');
+    // A hora da captura vai no cabeçalho para o cliente devolver no "guardar":
+    // é assim que o backend confere que o print salvo é o que está no preview,
+    // e não um mais novo que tenha entrado no meio. Ver POST /api/prints.
+    res.set('X-Print-Em', em);
+    res.send(png);
+  } catch (err) {
+    console.error('[tela] print falhou:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/*
+ * Histórico de prints.
+ *
+ * Capturar e guardar são separados de propósito. O alias do Pi sempre escrevia
+ * um arquivo, e é por isso que a home juntou dezenas de prints sem que ninguém
+ * decidisse guardá-los. Aqui a captura só mostra; guardar é um segundo clique,
+ * depois de olhar.
+ */
+app.get('/api/prints', (req, res) => {
+  res.json({ prints: prints.listar(), resumo: prints.resumo() });
+});
+
+/**
+ * Guarda no Pi o print que está no preview.
+ *
+ * O corpo manda o `em` que veio no cabeçalho X-Print-Em da captura. Se não
+ * bater com a última, alguém capturou de novo no meio do caminho e o que seria
+ * salvo não é o que está na tela de quem clicou -- melhor recusar e pedir outro
+ * print do que gravar a imagem errada com a nota certa.
+ */
+app.post('/api/prints', async (req, res) => {
+  const ultima = tela.ultimaCaptura();
+  if (!ultima) {
+    return res.status(409).json({ error: 'Nenhuma captura para guardar — tire um print primeiro' });
+  }
+  if (req.body && req.body.em && req.body.em !== ultima.em) {
+    return res.status(409).json({ error: 'O print mudou desde que você o viu — tire outro' });
+  }
+
+  // Contexto que só existe agora: o que estava tocando e a tag encostada. O PNG
+  // não carrega nada disso, e daqui a um ano não há de onde tirar.
+  let contexto = {};
+  try {
+    const player = await musicController.getStatus();
+    if (player && player.title) {
+      contexto.musica = {
+        album: player.album || null,
+        faixa: player.title,
+        tocando: !!player.isPlaying,
+      };
+    }
+    const tag = nfcReader.getCurrentTag();
+    if (tag) contexto.tag = tag.uid;
+  } catch (err) {
+    // Contexto é enfeite: um player mudo não pode impedir de guardar a imagem.
+    console.error('[prints] não consegui ler o contexto:', err.message);
+  }
+
+  try {
+    const entrada = prints.guardar({
+      png: ultima.png,
+      em: ultima.em,
+      nota: req.body && req.body.nota,
+      contexto,
+    });
+    res.status(201).json(entrada);
+  } catch (err) {
+    console.error('[prints] falha ao guardar:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/prints/:id', (req, res) => {
+  const entrada = prints.anotar(req.params.id, req.body && req.body.nota);
+  if (!entrada) return res.status(404).json({ error: 'Print não encontrado' });
+  res.json(entrada);
+});
+
+app.delete('/api/prints/:id', (req, res) => {
+  try {
+    const entrada = prints.remover(req.params.id);
+    if (!entrada) return res.status(404).json({ error: 'Print não encontrado' });
+    res.json({ ok: true, removido: entrada });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * Índice do admin.
  *
  * Server-rendered como as outras páginas de admin, mas os blocos que mudam
@@ -384,6 +496,17 @@ app.get('/admin', (req, res) => {
     .btns button:disabled { opacity: .4; cursor: default; }
     .nota { color: #666; font-size: .8rem; line-height: 1.5; margin: .75rem 0 0; max-width: 46rem; }
     .nota code { font-family: ui-monospace, monospace; color: #888; }
+    /* O print só aparece depois do primeiro clique; nascer vazio deixaria um
+       buraco no card. Largura fixa em 480 (o tamanho real da tela) e pixelated:
+       a UI do Alexo é pixelada de propósito, e deixar o navegador suavizar na
+       escala mostraria uma tela que não é a que está lá. */
+    #print { display: none; padding-top: 1rem; }
+    #print img { display: block; width: 480px; max-width: 100%; image-rendering: pixelated; border: 1px solid #333; border-radius: 4px; }
+    #print a { display: inline-block; margin-top: .6rem; color: #3b82f6; font-size: .85rem; }
+    #guardar { display: none; }
+    #guardar .k { flex: 1; }
+    #nota { width: 100%; max-width: 28rem; padding: .4rem .6rem; background: #111; color: #eee; border: 1px solid #444; border-radius: 5px; font-family: inherit; font-size: .85rem; }
+    #nota:focus { outline: none; border-color: #3b82f6; }
     /* Desligar não tem volta pela rede; a moldura separa isso do resto da página. */
     .perigo { border-color: #7f1d1d; }
     .btns button.ruim { border-color: #7f1d1d; color: #f87171; }
@@ -397,6 +520,7 @@ app.get('/admin', (req, res) => {
   <div class="acoes">
     <a href="/admin/gallery">Galeria</a>
     <a href="/admin/music">Música</a>
+    <a href="/admin/prints">Prints</a>
   </div>
 
   <h2>Conteúdo</h2>
@@ -433,6 +557,26 @@ app.get('/admin', (req, res) => {
     Sem autenticação: qualquer um na rede que abrir esta página pode parar os serviços.
     O Backend não tem botão de parar de propósito — pará-lo mataria o servidor
     que serve esta página, e só o ssh traria de volta.
+  </p>
+
+  <h2>Tela</h2>
+  <div class="card">
+    <div class="linha">
+      <span class="k">Print da tela<br><small>O que o display está mostrando agora, 480×320</small></span>
+      <span class="btns"><button id="btPrint">tirar print</button></span>
+    </div>
+    <div id="print"></div>
+    <div class="linha" id="guardar">
+      <span class="k"><input id="nota" type="text" maxlength="120" placeholder="uma nota: o que mudou nesta tela?" /></span>
+      <span class="btns"><button id="btGuardar">guardar no Pi</button></span>
+    </div>
+  </div>
+  <p class="nota">
+    É o mesmo <code>scrot</code> do alias <code>screenshot</code> do Pi, rodado
+    pelo backend. Ele fotografa o servidor X inteiro, não o Chromium: com o
+    Display (kiosk) parado o print sai, só que vazio.
+    Tirar o print não grava nada — <a href="/admin/prints">guardar no Pi</a> é o
+    segundo clique, para o print que valeu a pena.
   </p>
 
   <h2>Máquina</h2>
@@ -557,6 +701,94 @@ app.get('/admin', (req, res) => {
       mexendo = null;
       // O systemd leva um instante para assentar; ler cedo mostra o estado velho.
       setTimeout(tick, 1200);
+    });
+
+    /*
+     * Print da tela.
+     *
+     * A captura leva ~0,8 s no Zero W, então o botão precisa dizer que está
+     * fazendo alguma coisa: sem isso o clique parece não ter pegado e vira dois
+     * cliques. Desabilitar durante a captura é a mesma ideia do "mexendo" dos
+     * serviços, e casa com a trava que o backend já tem.
+     *
+     * A imagem vem como blob em vez de <img src="/api/system/screenshot">
+     * porque o link de salvar aproveita o mesmo objeto -- com src apontando
+     * para a rota, salvar dispararia uma segunda captura e o arquivo salvo
+     * seria de um instante diferente do que está na tela.
+     */
+    let urlDoPrint = null;
+    let emDaCaptura = null;
+
+    $('btPrint').addEventListener('click', async () => {
+      const b = $('btPrint');
+      b.disabled = true;
+      b.textContent = 'capturando…';
+
+      try {
+        const r = await fetch(API + '/api/system/screenshot');
+        // O erro vem em JSON mesmo numa rota que responde PNG; ver a rota.
+        if (!r.ok) {
+          const corpo = await r.json().catch(() => ({}));
+          throw new Error(corpo.error || 'Falhou');
+        }
+
+        // Sem o revoke o blob anterior fica preso na memória do navegador até
+        // fechar a aba, e são ~80 KB por clique.
+        if (urlDoPrint) URL.revokeObjectURL(urlDoPrint);
+        urlDoPrint = URL.createObjectURL(await r.blob());
+
+        // A hora da captura viaja com a imagem: é o que o "guardar" devolve
+        // para o backend confirmar que salvou o print que estava na tela.
+        emDaCaptura = r.headers.get('X-Print-Em');
+
+        const nome = 'alexo-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.png';
+        $('print').innerHTML =
+          '<img src="' + urlDoPrint + '" alt="Print da tela do Pi" />' +
+          '<a href="' + urlDoPrint + '" download="' + nome + '">baixar ' + nome + '</a>';
+        $('print').style.display = 'block';
+
+        // A linha de guardar só existe depois de haver o que guardar.
+        $('guardar').style.display = 'flex';
+        $('nota').value = '';
+        $('btGuardar').disabled = false;
+        $('btGuardar').textContent = 'guardar no Pi';
+      } catch (e) {
+        alert('Não deu para tirar o print: ' + e.message);
+      }
+
+      b.disabled = false;
+      b.textContent = 'tirar print';
+    });
+
+    /*
+     * Guardar no Pi.
+     *
+     * Só grava o print que já está no preview -- e manda de volta o "em" que
+     * veio na captura, para o backend recusar se alguém tiver capturado de novo
+     * no meio. Gravar a imagem errada com a nota certa é pior que recusar.
+     */
+    $('btGuardar').addEventListener('click', async () => {
+      const b = $('btGuardar');
+      b.disabled = true;
+      b.textContent = 'guardando…';
+
+      try {
+        const r = await fetch(API + '/api/prints', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ em: emDaCaptura, nota: $('nota').value }),
+        });
+        const corpo = await r.json();
+        if (!r.ok) throw new Error(corpo.error || 'Falhou');
+
+        // Confirmação no próprio botão em vez de alert: guardar é a ação
+        // esperada, e um alert por print viraria um clique a mais toda vez.
+        b.textContent = 'guardado ✓';
+      } catch (e) {
+        alert('Não deu para guardar: ' + e.message);
+        b.disabled = false;
+        b.textContent = 'guardar no Pi';
+      }
     });
 
     /*
@@ -959,6 +1191,187 @@ app.get('/admin/gallery', (req, res) => {
 });
 
 // Serve frontend in production
+/**
+ * Histórico de prints.
+ *
+ * Server-rendered e sem polling, ao contrário do índice: a lista só muda quando
+ * alguém guarda ou apaga um print, e as duas coisas passam por aqui.
+ *
+ * Agrupado por mês porque a pergunta que se faz a um histórico é "como estava
+ * em agosto", não "qual é o 47º print". A ordenação por nome de arquivo, que
+ * era tudo o que existia antes, continua valendo por baixo -- o carimbo ISO no
+ * nome ordena sozinho -- mas deixou de ser a única forma de achar as coisas.
+ */
+app.get('/admin/prints', (req, res) => {
+  const backendBase = `http://${req.hostname}:${PORT}`;
+  const apiBase = NODE_ENV === 'production' ? '' : backendBase;
+
+  const lista = prints.listar();
+  const resumo = prints.resumo();
+
+  // Nomes de mês à mão em vez de toLocaleDateString('pt-BR'): o Node do Pi é um
+  // build não-oficial para armv6l e não dá para contar com o ICU completo. Se
+  // faltar, a data vira inglês em silêncio -- e ninguém percebe até estranhar a
+  // página meses depois.
+  const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+  const esc = (t) => String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB');
+
+  // Agrupa preservando a ordem que veio (mais recente primeiro).
+  const meses = [];
+  const porMes = new Map();
+  for (const p of lista) {
+    const d = new Date(p.em);
+    const chave = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    if (!porMes.has(chave)) {
+      porMes.set(chave, []);
+      meses.push({ chave, rotulo: MESES[d.getMonth()] + ' de ' + d.getFullYear() });
+    }
+    porMes.get(chave).push(p);
+  }
+
+  const cartao = (p) => {
+    const d = new Date(p.em);
+    const hora = String(d.getDate()).padStart(2, '0') + '/' +
+      String(d.getMonth() + 1).padStart(2, '0') + ' ' +
+      String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+
+    // O contexto só aparece quando existe: uma linha "sem música" repetida em
+    // todo cartão seria ruído em cima do que interessa, que é a imagem.
+    const contexto = [
+      p.musica ? '♪ ' + esc(p.musica.faixa) + (p.musica.album ? ' — ' + esc(p.musica.album) : '') : '',
+      p.tag ? 'tag ' + esc(p.tag) : '',
+    ].filter(Boolean).map((t) => '<div class="ctx">' + t + '</div>').join('');
+
+    return '<div class="card" data-id="' + esc(p.id) + '">' +
+      '<a href="' + apiBase + '/uploads/prints/' + esc(p.arquivo) + '" target="_blank">' +
+        '<img src="' + apiBase + '/uploads/prints/' + esc(p.arquivo) + '" alt="Print de ' + esc(hora) + '" />' +
+      '</a>' +
+      '<div class="corpo">' +
+        '<div class="meta">' + esc(hora) +
+          (p.largura ? ' · ' + p.largura + '×' + p.altura : '') +
+          ' · ' + kb(p.bytes || 0) + '</div>' +
+        contexto +
+        '<input class="nota-in" value="' + esc(p.nota) + '" maxlength="120" placeholder="sem nota" />' +
+      '</div>' +
+      '<button class="del">✕ Remover</button>' +
+    '</div>';
+  };
+
+  const corpo = lista.length === 0
+    ? '<p class="vazio">Nenhum print guardado ainda. Tire um print no <a href="/admin">admin</a> e clique em “guardar no Pi”.</p>'
+    : meses.map((m) =>
+        '<h2>' + m.rotulo + ' <small>' + porMes.get(m.chave).length + '</small></h2>' +
+        '<div class="grid">' + porMes.get(m.chave).map(cartao).join('') + '</div>').join('');
+
+  res.send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prints — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 2rem; }
+    h1 { margin: 0 0 .25rem; font-size: 1.4rem; }
+    .sub { color: #888; font-size: .9rem; margin: 0 0 1.5rem; }
+    .sub a { color: #3b82f6; }
+    h2 { font-size: .8rem; margin: 2rem 0 .75rem; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    h2 small { color: #555; font-weight: 400; text-transform: none; letter-spacing: 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+    .card { background: #1e1e1e; border: 1px solid #333; border-radius: 8px; overflow: hidden; }
+    /* A tela é 480x320 e a UI é pixelada de propósito; sem o pixelated o
+       navegador suaviza e mostra uma tela que não é a que estava lá. */
+    .card img { width: 100%; display: block; image-rendering: pixelated; background: #000; }
+    .corpo { padding: .6rem .7rem; }
+    .meta { color: #888; font-size: .75rem; font-family: ui-monospace, monospace; }
+    .ctx { color: #6ee7b7; font-size: .75rem; margin-top: .3rem; }
+    .nota-in { width: 100%; margin-top: .5rem; padding: .35rem .5rem; background: #111; color: #eee; border: 1px solid #333; border-radius: 4px; font-family: inherit; font-size: .8rem; }
+    .nota-in:focus { outline: none; border-color: #3b82f6; }
+    .nota-in::placeholder { color: #555; font-style: italic; }
+    .del { width: 100%; padding: .45rem; background: #2a2a2a; color: #888; border: none; border-top: 1px solid #333; cursor: pointer; font-size: .8rem; font-family: inherit; }
+    .del:hover { background: #7f1d1d; color: #fff; }
+    .vazio { color: #888; text-align: center; margin: 3rem 0; }
+    .vazio a { color: #3b82f6; }
+    #aviso { position: fixed; bottom: 1rem; right: 1rem; background: #1e3a2f; color: #6ee7b7; border: 1px solid #2f6b52; padding: .6rem 1rem; border-radius: 6px; font-size: .85rem; opacity: 0; transition: opacity .2s; pointer-events: none; }
+    #aviso.on { opacity: 1; }
+  </style>
+</head>
+<body>
+  <h1>Prints</h1>
+  <p class="sub">
+    ${resumo.total} print(s), ${kb(resumo.bytes)} no cartão ·
+    <a href="/admin">voltar ao admin</a>
+  </p>
+
+  ${corpo}
+
+  <div id="aviso"></div>
+
+  <script>
+    const API = '${apiBase}';
+
+    function avisar(texto) {
+      const el = document.getElementById('aviso');
+      el.textContent = texto;
+      el.classList.add('on');
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.remove('on'), 1800);
+    }
+
+    /*
+     * A nota salva ao sair do campo, e não a cada tecla: são escritas no cartão
+     * SD, e uma por caractere digitado é justamente o que este projeto evita em
+     * todo lugar. Enter também salva, para quem não quer clicar fora.
+     */
+    document.addEventListener('change', async (ev) => {
+      const campo = ev.target.closest('.nota-in');
+      if (!campo) return;
+
+      const id = campo.closest('.card').dataset.id;
+      try {
+        const r = await fetch(API + '/api/prints/' + id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nota: campo.value }),
+        });
+        if (!r.ok) throw new Error((await r.json()).error || 'Falhou');
+        avisar('nota salva');
+      } catch (e) {
+        alert('Não deu para salvar a nota: ' + e.message);
+      }
+    });
+
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' && ev.target.closest('.nota-in')) ev.target.blur();
+    });
+
+    document.addEventListener('click', async (ev) => {
+      const bt = ev.target.closest('.del');
+      if (!bt) return;
+
+      const cartao = bt.closest('.card');
+      // Apagar um print não tem desfazer e o arquivo sai do cartão junto.
+      if (!confirm('Remover este print? O arquivo sai do Pi.')) return;
+
+      try {
+        const r = await fetch(API + '/api/prints/' + cartao.dataset.id, { method: 'DELETE' });
+        if (!r.ok) throw new Error((await r.json()).error || 'Falhou');
+        cartao.remove();
+        avisar('print removido');
+      } catch (e) {
+        alert('Não deu para remover: ' + e.message);
+      }
+    });
+  </script>
+</body>
+</html>`);
+});
+
 if (NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, '..', 'frontend', 'dist');
   app.use(express.static(frontendPath));
