@@ -16,7 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const player = require(path.join(__dirname, '..', 'musicPlayer'));
+const player = require(path.join(__dirname, '..', 'lib', 'musicPlayer'));
 
 const MUSIC_DIR = path.join(__dirname, '..', 'uploads', 'music');
 const VOLUME = Number(process.env.MPV_VOLUME || 50);

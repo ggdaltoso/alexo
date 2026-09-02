@@ -27,11 +27,12 @@ const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('./ids');
 
-const DIR = path.join(__dirname, 'uploads', 'prints');
-const INDICE = path.join(__dirname, 'data', 'prints.json');
+const { PRINTS_DIR: DIR, DATA_DIR } = require('../config');
 
-// Mesmo motivo do uploads/gallery no server.js: estas pastas não vêm no deploy,
-// então num Pi novo nada as cria e o primeiro "guardar" falharia com ENOENT
+const INDICE = path.join(DATA_DIR, 'prints.json');
+
+// Mesmo motivo do uploads/gallery em routes/api/gallery.js: estas pastas não vêm
+// no deploy, então num Pi novo nada as cria e o primeiro "guardar" falharia com ENOENT
 // depois de já ter capturado a imagem.
 fs.mkdirSync(DIR, { recursive: true });
 fs.mkdirSync(path.dirname(INDICE), { recursive: true });

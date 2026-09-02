@@ -150,7 +150,7 @@ function sistema(acao) {
   const alvo = SISTEMA[acao];
   if (!alvo) throw new Error(`Ação de sistema desconhecida: ${acao}`);
   // Sempre "suicida": a máquina inteira cai, então a resposta HTTP tem de sair
-  // antes. Ver o comentário da rota no server.js.
+  // antes. Ver o comentário da rota em routes/api/sistema.js.
   return { rotulo: alvo.rotulo, volta: alvo.volta, rodar: () => systemctl(alvo.argumentos) };
 }
 

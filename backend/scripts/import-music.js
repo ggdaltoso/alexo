@@ -12,8 +12,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const state = require(path.join(__dirname, '..', 'state'));
-const catalog = require(path.join(__dirname, '..', 'musicCatalog'));
+const state = require(path.join(__dirname, '..', 'lib', 'state'));
+const catalog = require(path.join(__dirname, '..', 'lib', 'musicCatalog'));
 
 const DRY_RUN = process.argv.includes('--dry-run');
 

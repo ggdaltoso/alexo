@@ -25,7 +25,7 @@ const { spawn } = require('child_process');
 
 const SOCKET_PATH = process.env.MPV_SOCKET || '/tmp/alexo-mpv.sock';
 const AUDIO_DEVICE = process.env.MPV_AUDIO_DEVICE || 'alsa/hw:0,0';
-const MUSIC_DIR = path.join(__dirname, 'uploads', 'music');
+const { MUSICA_DIR: MUSIC_DIR } = require('../config');
 
 // 100 foi escolhido de ouvido no hardware real, não chutado: o speaker do projeto
 // é ineficiente e volume audível importou mais que fidelidade.
