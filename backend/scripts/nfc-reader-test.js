@@ -16,7 +16,7 @@
  */
 const path = require('path');
 
-const nfc = require(path.join(__dirname, '..', 'nfcReader'));
+const nfc = require(path.join(__dirname, '..', 'lib', 'nfcReader'));
 
 const seconds = Number(process.argv[2]) || 0;
 const t0 = Date.now();

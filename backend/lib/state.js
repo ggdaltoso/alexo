@@ -1,12 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const { DATA_DIR } = require('../config');
 const GALLERY_FILE = path.join(DATA_DIR, 'gallery.json');
 const TRACKS_FILE = path.join(DATA_DIR, 'music-tracks.json');
 const TAGS_FILE = path.join(DATA_DIR, 'nfc-tags.json');
 
-// data/ não é sincronizado pelo deploy -- ver o comentário em server.js.
+// data/ não é sincronizado pelo deploy -- ver o comentário no config.js.
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 let state = {

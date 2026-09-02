@@ -142,13 +142,31 @@ A monorepo with two halves and a deliberately thin seam between them.
 
 | Module | Responsibility |
 |---|---|
-| `server.js` | HTTP routes, admin pages, startup wiring |
-| `ws.js` | WebSocket broadcast; `type` is the discriminator |
-| `state.js` | Gallery, music catalogue, tag mappings, player state |
-| `nfcReader.js` | PN532 over I2C; emits `tag-present` / `tag-vanish` |
-| `musicPlayer.js` | mpv over its JSON IPC socket |
-| `musicController.js` | The glue — the only module that sees all of the above |
-| `musicCatalog.js` | Derives the catalogue from what is on disk |
+| `server.js` | Startup: HTTP server, WebSocket attach, clean shutdown |
+| `app.js` | Express wiring: middleware, routes, static files |
+| `config.js` | Loads the `.env` and owns every path under `backend/` |
+| `routes/api/` | One router per subject, mounted in `routes/index.js` |
+| `routes/admin.js` | Admin pages: gathers the data, delegates the HTML |
+| `views/admin/` | The markup for those pages; `layout.js` is the shared shell |
+| `public/admin/` | Their CSS and client-side JS, served at `/admin/assets` |
+| `lib/ws.js` | WebSocket broadcast; `type` is the discriminator |
+| `lib/state.js` | Gallery, music catalogue, tag mappings, player state |
+| `lib/nfcReader.js` | PN532 over I2C; emits `tag-present` / `tag-vanish` |
+| `lib/musicPlayer.js` | mpv over its JSON IPC socket |
+| `lib/musicController.js` | The glue — the only module that sees all of the above |
+| `lib/musicCatalog.js` | Derives the catalogue from what is on disk |
+
+The admin pages are server-rendered HTML, with no build step and no client framework. What used to
+make them hard to work on was not the templating: of the 917 lines the four pages once occupied, 404
+were client-side JavaScript trapped inside template literals — no syntax highlighting, no linting, no
+formatting. That code now lives in real `.css` and `.js` files under `public/admin/`, and the only
+thing the server still tells the browser is `window.ADMIN_API`. The views are down to 307 lines of
+markup.
+
+Routes hold no domain logic: they validate the request, call into `lib/`, and broadcast. `config.js`
+is required first, before anything else, because it loads the `.env` that `musicPlayer` and
+`nfcReader` read at require time — and because `data/` and `uploads/` live at the backend root while
+the code that uses them does not, so the paths are defined in one place instead of via `__dirname`.
 
 `nfcReader` and `musicPlayer` do not know about each other: the reader knows nothing about music,
 the player knows nothing about tags.
@@ -646,17 +664,27 @@ into a summary — see [Wi-Fi drops](#wi-fi-drops).
 ```
 alexo/
 ├── backend/
-│   ├── server.js            # routes, admin pages, startup
-│   ├── ws.js                # WebSocket broadcast
-│   ├── state.js             # gallery, catalogue, tags, player state
-│   ├── nfcReader.js         # PN532 over I2C
-│   ├── musicPlayer.js       # mpv IPC client
-│   ├── musicController.js   # NFC ←→ player glue
-│   ├── musicCatalog.js      # disk → catalogue
-│   ├── ids.js               # UUID v4 without crypto.randomUUID
-│   ├── servicos.js          # systemd units, reboot, poweroff
-│   ├── tela.js              # screen capture via scrot
-│   ├── prints.js            # saved captures: files + index
+│   ├── server.js            # startup: HTTP + WebSocket + shutdown
+│   ├── app.js               # Express wiring
+│   ├── config.js            # .env and every path under backend/
+│   ├── routes/
+│   │   ├── index.js         # where each router is mounted
+│   │   ├── admin.js         # admin pages: data in, HTML out
+│   │   └── api/             # nfc, gallery, music, servicos, sistema, prints
+│   ├── views/admin/         # markup for the admin pages + layout.js
+│   ├── public/admin/        # their CSS and client JS (served at /admin/assets)
+│   ├── lib/
+│   │   ├── ws.js            # WebSocket broadcast
+│   │   ├── state.js         # gallery, catalogue, tags, player state
+│   │   ├── nfcReader.js     # PN532 over I2C
+│   │   ├── musicPlayer.js   # mpv IPC client
+│   │   ├── musicController.js  # NFC ←→ player glue
+│   │   ├── musicCatalog.js  # disk → catalogue
+│   │   ├── ids.js           # UUID v4 without crypto.randomUUID
+│   │   ├── imagem.js        # shrinks uploaded photos via Pillow
+│   │   ├── servicos.js      # systemd units, reboot, poweroff
+│   │   ├── tela.js          # screen capture via scrot
+│   │   └── prints.js        # saved captures: files + index
 │   ├── scripts/             # bench tools
 │   ├── data/                # JSON state (never deployed)
 │   └── uploads/             # photos and MP3s (never deployed)

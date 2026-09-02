@@ -10,7 +10,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const MUSIC_DIR = path.join(__dirname, 'uploads', 'music');
+const { MUSICA_DIR: MUSIC_DIR } = require('../config');
 
 /**
  * id derivado do caminho, NÃO aleatório.
