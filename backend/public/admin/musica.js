@@ -4,7 +4,8 @@ let volAtual = 100;
 function aviso(t, erro) {
   const el = document.getElementById('msg');
   el.textContent = t;
-  el.style.color = erro ? '#f87171' : '#6ee7b7';
+  el.classList.toggle('falha', erro);
+  el.classList.toggle('ok', !erro);
 }
 
 async function salvar() {

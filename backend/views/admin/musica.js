@@ -34,7 +34,7 @@ module.exports = function paginaMusica({ apiBase, albums, mappings }) {
     apiBase,
     corpo: `
   <h1>Música — Admin</h1>
-  <p style="color:#888;margin:-1rem 0 1.5rem"><a href="/admin">← Admin</a> · <a href="/admin/gallery">Galeria</a></p>
+  <p class="nav"><a href="/admin">← Admin</a> · <a href="/admin/gallery">Galeria</a></p>
 
   <h2>Cadastrar tag</h2>
   <div class="box">

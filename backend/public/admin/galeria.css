@@ -14,4 +14,5 @@ h1 { margin: 0 0 1.5rem; font-size: 1.4rem; }
 .move-btns button:disabled { opacity: .3; cursor: default; }
 .del { width: 100%; padding: .5rem; background: #ef4444; color: var(--branco); border: none; cursor: pointer; font-size: .85rem; }
 .del:hover { background: #dc2626; }
+.vazio { color: var(--texto-fraco); text-align: center; margin: 2rem 0; }
 #status { margin-top: 1rem; font-size: .9rem; color: #4ade80; min-height: 1.2rem; }

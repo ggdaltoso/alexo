@@ -146,10 +146,10 @@ $('btPrint').addEventListener('click', async () => {
     $('print').innerHTML =
       '<img src="' + urlDoPrint + '" alt="Print da tela do Pi" />' +
       '<a href="' + urlDoPrint + '" download="' + nome + '">baixar ' + nome + '</a>';
-    $('print').style.display = 'block';
+    $('print').classList.add('visivel');
 
     // A linha de guardar só existe depois de haver o que guardar.
-    $('guardar').style.display = 'flex';
+    $('guardar').classList.add('visivel');
     $('nota').value = '';
     $('btGuardar').disabled = false;
     $('btGuardar').textContent = 'guardar no Pi';

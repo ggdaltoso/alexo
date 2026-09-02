@@ -39,9 +39,11 @@ a.card:hover { border-color: var(--acento); }
    a UI do Alexo é pixelada de propósito, e deixar o navegador suavizar na
    escala mostraria uma tela que não é a que está lá. */
 #print { display: none; padding-top: 1rem; }
+#print.visivel { display: block; }
 #print img { display: block; width: 480px; max-width: 100%; image-rendering: pixelated; border: 1px solid var(--borda); border-radius: 4px; }
 #print a { display: inline-block; margin-top: .6rem; color: var(--acento); font-size: .85rem; }
 #guardar { display: none; }
+#guardar.visivel { display: flex; }
 #guardar .k { flex: 1; }
 #nota { width: 100%; max-width: 28rem; padding: .4rem .6rem; background: var(--fundo); color: var(--texto); border: 1px solid var(--borda-campo); border-radius: 5px; font-family: inherit; font-size: .85rem; }
 #nota:focus { outline: none; border-color: var(--acento); }
