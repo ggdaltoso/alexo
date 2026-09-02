@@ -36,19 +36,15 @@ module.exports = function homePage({ apiBase, imageCount, trackCount, albumCount
   </div>
 
   <h2>Hardware</h2>
-  <div class="card">
-    <div class="row"><span class="key-cell">Leitor NFC</span><span class="value-cell" id="readerState">...</span></div>
-    <div class="row"><span class="key-cell">Tag encostada</span><span class="value-cell" id="readerTag">...</span></div>
-    <div class="row"><span class="key-cell">Player (mpv)</span><span class="value-cell" id="playerState">...</span></div>
-  </div>
+  <div class="card" id="hardware"
+       hx-get="/admin/partials/device"
+       hx-trigger="load, every 2s"
+       hx-swap="innerHTML"
+       hx-sync="this:replace"><div class="row"><span class="key-cell">carregando…</span></div></div>
 
   <h2>Tocando agora</h2>
-  <div class="card">
-    <div class="row"><span class="key-cell">Álbum</span><span class="value-cell" id="pAlbum">—</span></div>
-    <div class="row"><span class="key-cell">Faixa</span><span class="value-cell" id="pTrack">—</span></div>
-    <div class="row"><span class="key-cell">Posição</span><span class="value-cell" id="pPos">—</span></div>
-    <div class="row"><span class="key-cell">Volume</span><span class="value-cell" id="pVol">—</span></div>
-  </div>
+  <!-- Atualizado junto com o #hardware, pela mesma resposta (hx-swap-oob). -->
+  <div class="card" id="playing"><div class="row"><span class="key-cell">carregando…</span></div></div>
 
   <h2>Serviços</h2>
   <div class="card" id="services"

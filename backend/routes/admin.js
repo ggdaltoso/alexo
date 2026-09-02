@@ -4,12 +4,15 @@ const { PORT, isProduction } = require('../config');
 const state = require('../lib/state');
 const prints = require('../lib/prints');
 const services = require('../lib/services');
+const musicController = require('../lib/musicController');
+const nfcReader = require('../lib/nfcReader');
 
 const homePage = require('../views/admin/home');
 const musicPage = require('../views/admin/music');
 const galleryPage = require('../views/admin/gallery');
 const printsPage = require('../views/admin/prints');
 const servicesBlock = require('../views/admin/partials/services');
+const deviceBlock = require('../views/admin/partials/device');
 
 const router = express.Router();
 
@@ -64,6 +67,13 @@ router.get('/prints', (req, res) => {
  * /admin/blocos para não se confundirem com as páginas nem com a API JSON --
  * o que volta daqui não serve para mais nada além de ser inserido no DOM.
  */
+router.get('/partials/device', async (req, res) => {
+  res.send(deviceBlock({
+    reader: { tag: nfcReader.getCurrentTag(), running: nfcReader.isRunning() },
+    player: await musicController.getStatus(),
+  }));
+});
+
 router.get('/partials/services', async (req, res) => {
   res.send(servicesBlock(await services.list()));
 });
