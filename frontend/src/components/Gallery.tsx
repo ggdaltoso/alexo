@@ -15,7 +15,7 @@ interface GalleryItem {
 const SLIDE_INTERVAL_MS = 5 * 60 * 1000;
 const POLL_INTERVAL_MS = 30 * 1000;
 
-export function Galeria() {
+export function Gallery() {
   const [images, setImages] = useState<GalleryItem[]>([]);
   const [current, setCurrent] = useState(0);
   const [fade, setFade] = useState(true);
@@ -32,10 +32,10 @@ export function Galeria() {
       // remonta e zera o timer. Com poll de 30s e slide de 5min, o timer nunca
       // chegava a disparar e a galeria ficava parada na primeira foto.
       setImages((prev) => {
-        const igual =
+        const same =
           prev.length === next.length &&
           prev.every((p, i) => p.id === next[i].id && p.url === next[i].url);
-        return igual ? prev : next;
+        return same ? prev : next;
       });
     } catch {
       // silently ignore network errors
@@ -75,7 +75,7 @@ export function Galeria() {
         p="$1"
         boxShadow="$out"
       >
-        <TitleBar title="Galeria" icon={<Wangimg128 variant="16x16_4" />} />
+        <TitleBar title="Gallery" icon={<Wangimg128 variant="16x16_4" />} />
 
         <Frame className="flex-1 min-h-0 overflow-hidden" p="$3" pr="$4" bgColor="$material">
           <Frame className="w-full h-full flex items-center justify-center overflow-hidden" bg="white" boxShadow="$in" pt="$2" pl="$2">
@@ -97,7 +97,7 @@ export function Galeria() {
       p="$1"
       boxShadow="$out"
     >
-      <TitleBar title="Galeria" icon={<Wangimg128 variant="16x16_4" />} />
+      <TitleBar title="Gallery" icon={<Wangimg128 variant="16x16_4" />} />
 
       <Frame className="flex-1 min-h-0 overflow-hidden" p="$3" pr="$4" as="figure" bgColor="$material">
         <Frame className="w-full h-full overflow-hidden" bg="white" boxShadow="$in" pt="$1" pl="$1">

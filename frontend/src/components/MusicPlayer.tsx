@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { Frame } from '@react95/core/Frame';
 import { Range } from '@react95/core/Range';
 import { useApp } from '../contexts';
-import { Letreiro } from './Letreiro';
+import { Marquee } from './Marquee';
 
 /**
- * Painel do player, fixo abaixo da Galeria.
+ * Painel do player, fixo abaixo da Gallery.
  *
  * Sem controles de propósito: quem comanda é a tag NFC. Botões aqui competiriam
  * com o gesto físico e criariam estados contraditórios -- pausar na tela com a
@@ -24,7 +24,7 @@ const TICK_MS = 500;
  * trocar de álbum faria a UI piscar -- e ficar para sempre desperdiçaria um
  * quarto da tela mostrando "Nada tocando".
  */
-const JANELA_APOS_PARAR_MS = 60000;
+const WINDOW_AFTER_STOP_MS = 60000;
 
 function mmss(segundos: number) {
   const s = Math.max(0, Math.floor(segundos));
@@ -33,48 +33,48 @@ function mmss(segundos: number) {
 
 export function MusicPlayer() {
   const { musicPlayback } = useApp();
-  const [agora, setAgora] = useState(Date.now());
+  const [now, setNow] = useState(Date.now());
 
-  const tocando = musicPlayback?.isPlaying ?? false;
-  const temFaixa = Boolean(musicPlayback?.title);
-  const paradoEm = musicPlayback?.stateChangedAt ?? 0;
+  const playing = musicPlayback?.isPlaying ?? false;
+  const hasTrack = Boolean(musicPlayback?.title);
+  const stoppedAt = musicPlayback?.stateChangedAt ?? 0;
 
   useEffect(() => {
     // Só conta tempo enquanto toca. Parado, a posição é a que o backend mandou.
-    if (!tocando) return;
-    const id = setInterval(() => setAgora(Date.now()), TICK_MS);
+    if (!playing) return;
+    const id = setInterval(() => setNow(Date.now()), TICK_MS);
     return () => clearInterval(id);
-  }, [tocando]);
+  }, [playing]);
 
   useEffect(() => {
     // Um único timer marcado para o fim da janela, em vez de ficar consultando o
     // relógio: o painel só precisa re-renderizar uma vez, no instante em que
     // deixa de ser visível. Num Pi Zero, um setInterval eterno para isso seria
     // desperdício.
-    if (tocando || !temFaixa) return;
-    const restante = JANELA_APOS_PARAR_MS - (Date.now() - paradoEm);
-    if (restante <= 0) return;
-    const id = setTimeout(() => setAgora(Date.now()), restante + 50);
+    if (playing || !hasTrack) return;
+    const remaining = WINDOW_AFTER_STOP_MS - (Date.now() - stoppedAt);
+    if (remaining <= 0) return;
+    const id = setTimeout(() => setNow(Date.now()), remaining + 50);
     return () => clearTimeout(id);
-  }, [tocando, temFaixa, paradoEm]);
+  }, [playing, hasTrack, stoppedAt]);
 
   // Visível tocando, e por mais um minuto depois de parar.
-  const visivel = temFaixa && (tocando || agora - paradoEm < JANELA_APOS_PARAR_MS);
+  const visible = hasTrack && (playing || now - stoppedAt < WINDOW_AFTER_STOP_MS);
 
-  if (!visivel) return null;
+  if (!visible) return null;
 
   // Interpolação local: o backend manda {position, positionAt} nas transições e
   // o resto do tempo o relógio daqui completa. É o que evita um broadcast por
   // segundo para todos os clientes.
-  const posicao =
+  const position =
     musicPlayback!.position +
-    (tocando ? (agora - musicPlayback!.positionAt) / 1000 : 0);
+    (playing ? (now - musicPlayback!.positionAt) / 1000 : 0);
 
-  const duracao = musicPlayback?.duration ?? null;
+  const duration = musicPlayback?.duration ?? null;
   // Enquanto o mpv não carregou a faixa, `duration` é nula: max=0 deixa o cursor
   // encostado na esquerda, que é honesto -- não sabemos onde estamos.
-  const limite = duracao ?? 0;
-  const atual = Math.min(posicao, limite);
+  const limit = duration ?? 0;
+  const current = Math.min(position, limit);
 
   return (
     <Frame
@@ -96,8 +96,8 @@ export function MusicPlayer() {
           px="$4"
           color="$materialTextInvert"
         >
-          <Letreiro
-            texto={
+          <Marquee
+            text={
               `${musicPlayback!.album} - ${musicPlayback!.title}` +
               (musicPlayback!.trackCount > 0
                 ? ` · ${musicPlayback!.trackIndex + 1}/${musicPlayback!.trackCount}`
@@ -116,9 +116,9 @@ export function MusicPlayer() {
           <Range
             className="w-full pointer-events-none"
             min={0}
-            max={limite}
+            max={limit}
             step="any"
-            value={atual}
+            value={current}
             onChange={() => {}}
             tabIndex={-1}
             aria-hidden
@@ -126,7 +126,7 @@ export function MusicPlayer() {
           <span className="text-[1em] whitespace-nowrap">
             {/* duration é nula até o mpv carregar a faixa: mostrar --:-- é mais
                 honesto que 00:00, que parece uma faixa de duração zero */}
-            {mmss(posicao)} / {duracao ? mmss(duracao) : '--:--'}
+            {mmss(position)} / {duration ? mmss(duration) : '--:--'}
           </span>
         </div>
       </Frame>

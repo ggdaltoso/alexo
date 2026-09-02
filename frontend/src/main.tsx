@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { AppProvider } from './contexts/AppContext';
-import { Galeria } from './components/Galeria';
+import { Gallery } from './components/Gallery';
 import { MusicPlayer } from './components/MusicPlayer';
 
 import '@react95/core/GlobalStyle';
@@ -26,7 +26,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       {/*
         Layout em duas colunas:
 
-          Galeria       | telas (carrossel)
+          Gallery       | telas (carrossel)
           MusicPlayer   | barra de progresso
 
         O BrowserRouter e o AppProvider passaram a envolver as DUAS colunas. Antes
@@ -47,7 +47,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           */}
           <div className="flex w-full h-full gap-2">
             <div className="flex-1 min-w-0 h-full flex flex-col gap-2 overflow-hidden">
-              <Galeria />
+              <Gallery />
               <MusicPlayer />
             </div>
             <div className="flex-1 min-w-0 h-full overflow-hidden">
