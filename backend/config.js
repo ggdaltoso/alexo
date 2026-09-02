@@ -32,5 +32,6 @@ module.exports = {
   MUSICA_DIR: path.join(RAIZ, 'uploads', 'music'),
   PRINTS_DIR: path.join(RAIZ, 'uploads', 'prints'),
   SCRIPTS_DIR: path.join(RAIZ, 'scripts'),
+  PUBLIC_ADMIN_DIR: path.join(RAIZ, 'public', 'admin'),
   FRONTEND_DIST: path.join(RAIZ, '..', 'frontend', 'dist'),
 };

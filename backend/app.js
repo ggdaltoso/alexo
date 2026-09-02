@@ -7,7 +7,7 @@
 const path = require('path');
 const express = require('express');
 
-const { NODE_ENV, ehProducao, UPLOADS_DIR, FRONTEND_DIST } = require('./config');
+const { NODE_ENV, ehProducao, UPLOADS_DIR, FRONTEND_DIST, PUBLIC_ADMIN_DIR } = require('./config');
 const rotas = require('./routes');
 
 const app = express();
@@ -27,6 +27,10 @@ if (NODE_ENV === 'development') {
 
 app.use(express.json());
 app.use('/uploads', express.static(UPLOADS_DIR));
+
+// O CSS e o JS das páginas de admin. Montado em /admin/assets, e não em /admin,
+// para não haver como um arquivo do disco sombrear uma rota de página.
+app.use('/admin/assets', express.static(PUBLIC_ADMIN_DIR));
 
 app.use(rotas);
 

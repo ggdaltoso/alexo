@@ -147,13 +147,21 @@ A monorepo with two halves and a deliberately thin seam between them.
 | `config.js` | Loads the `.env` and owns every path under `backend/` |
 | `routes/api/` | One router per subject, mounted in `routes/index.js` |
 | `routes/admin.js` | Admin pages: gathers the data, delegates the HTML |
-| `views/admin/` | The server-rendered HTML for those pages |
+| `views/admin/` | The markup for those pages; `layout.js` is the shared shell |
+| `public/admin/` | Their CSS and client-side JS, served at `/admin/assets` |
 | `lib/ws.js` | WebSocket broadcast; `type` is the discriminator |
 | `lib/state.js` | Gallery, music catalogue, tag mappings, player state |
 | `lib/nfcReader.js` | PN532 over I2C; emits `tag-present` / `tag-vanish` |
 | `lib/musicPlayer.js` | mpv over its JSON IPC socket |
 | `lib/musicController.js` | The glue — the only module that sees all of the above |
 | `lib/musicCatalog.js` | Derives the catalogue from what is on disk |
+
+The admin pages are server-rendered HTML, with no build step and no client framework. What used to
+make them hard to work on was not the templating: of the 917 lines the four pages once occupied, 404
+were client-side JavaScript trapped inside template literals — no syntax highlighting, no linting, no
+formatting. That code now lives in real `.css` and `.js` files under `public/admin/`, and the only
+thing the server still tells the browser is `window.ADMIN_API`. The views are down to 307 lines of
+markup.
 
 Routes hold no domain logic: they validate the request, call into `lib/`, and broadcast. `config.js`
 is required first, before anything else, because it loads the `.env` that `musicPlayer` and
@@ -663,7 +671,8 @@ alexo/
 │   │   ├── index.js         # where each router is mounted
 │   │   ├── admin.js         # admin pages: data in, HTML out
 │   │   └── api/             # nfc, gallery, music, servicos, sistema, prints
-│   ├── views/admin/         # server-rendered HTML for the admin pages
+│   ├── views/admin/         # markup for the admin pages + layout.js
+│   ├── public/admin/        # their CSS and client JS (served at /admin/assets)
 │   ├── lib/
 │   │   ├── ws.js            # WebSocket broadcast
 │   │   ├── state.js         # gallery, catalogue, tags, player state

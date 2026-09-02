@@ -1,0 +1,22 @@
+h1 { margin: 0 0 .25rem; font-size: 1.4rem; }
+.sub { color: var(--texto-fraco); font-size: .9rem; margin: 0 0 1.5rem; }
+.sub a { color: var(--acento); }
+h2 { font-size: .8rem; margin: 2rem 0 .75rem; color: var(--texto-fraco); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+h2 small { color: var(--borda-fraca); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+.card { background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; overflow: hidden; }
+/* A tela é 480x320 e a UI é pixelada de propósito; sem o pixelated o
+   navegador suaviza e mostra uma tela que não é a que estava lá. */
+.card img { width: 100%; display: block; image-rendering: pixelated; background: #000; }
+.corpo { padding: .6rem .7rem; }
+.meta { color: var(--texto-fraco); font-size: .75rem; font-family: ui-monospace, monospace; }
+.ctx { color: var(--ok); font-size: .75rem; margin-top: .3rem; }
+.nota-in { width: 100%; margin-top: .5rem; padding: .35rem .5rem; background: var(--fundo); color: var(--texto); border: 1px solid var(--borda); border-radius: 4px; font-family: inherit; font-size: .8rem; }
+.nota-in:focus { outline: none; border-color: var(--acento); }
+.nota-in::placeholder { color: var(--borda-fraca); font-style: italic; }
+.del { width: 100%; padding: .45rem; background: var(--campo); color: var(--texto-fraco); border: none; border-top: 1px solid var(--borda); cursor: pointer; font-size: .8rem; font-family: inherit; }
+.del:hover { background: var(--erro-fundo); color: var(--branco); }
+.vazio { color: var(--texto-fraco); text-align: center; margin: 3rem 0; }
+.vazio a { color: var(--acento); }
+#aviso { position: fixed; bottom: 1rem; right: 1rem; background: #1e3a2f; color: var(--ok); border: 1px solid #2f6b52; padding: .6rem 1rem; border-radius: 6px; font-size: .85rem; opacity: 0; transition: opacity .2s; pointer-events: none; }
+#aviso.on { opacity: 1; }

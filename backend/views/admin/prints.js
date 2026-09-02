@@ -9,6 +9,8 @@
  * era tudo o que existia antes, continua valendo por baixo -- o carimbo ISO no
  * nome ordena sozinho -- mas deixou de ser a única forma de achar as coisas.
  */
+const layout = require('./layout');
+
 module.exports = function paginaPrints({ apiBase, lista, resumo }) {
   // Nomes de mês à mão em vez de toLocaleDateString('pt-BR'): o Node do Pi é um
   // build não-oficial para armv6l e não dá para contar com o ICU completo. Se
@@ -69,40 +71,11 @@ module.exports = function paginaPrints({ apiBase, lista, resumo }) {
         '<h2>' + m.rotulo + ' <small>' + porMes.get(m.chave).length + '</small></h2>' +
         '<div class="grid">' + porMes.get(m.chave).map(cartao).join('') + '</div>').join('');
 
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Prints — Admin</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 2rem; }
-    h1 { margin: 0 0 .25rem; font-size: 1.4rem; }
-    .sub { color: #888; font-size: .9rem; margin: 0 0 1.5rem; }
-    .sub a { color: #3b82f6; }
-    h2 { font-size: .8rem; margin: 2rem 0 .75rem; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-    h2 small { color: #555; font-weight: 400; text-transform: none; letter-spacing: 0; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
-    .card { background: #1e1e1e; border: 1px solid #333; border-radius: 8px; overflow: hidden; }
-    /* A tela é 480x320 e a UI é pixelada de propósito; sem o pixelated o
-       navegador suaviza e mostra uma tela que não é a que estava lá. */
-    .card img { width: 100%; display: block; image-rendering: pixelated; background: #000; }
-    .corpo { padding: .6rem .7rem; }
-    .meta { color: #888; font-size: .75rem; font-family: ui-monospace, monospace; }
-    .ctx { color: #6ee7b7; font-size: .75rem; margin-top: .3rem; }
-    .nota-in { width: 100%; margin-top: .5rem; padding: .35rem .5rem; background: #111; color: #eee; border: 1px solid #333; border-radius: 4px; font-family: inherit; font-size: .8rem; }
-    .nota-in:focus { outline: none; border-color: #3b82f6; }
-    .nota-in::placeholder { color: #555; font-style: italic; }
-    .del { width: 100%; padding: .45rem; background: #2a2a2a; color: #888; border: none; border-top: 1px solid #333; cursor: pointer; font-size: .8rem; font-family: inherit; }
-    .del:hover { background: #7f1d1d; color: #fff; }
-    .vazio { color: #888; text-align: center; margin: 3rem 0; }
-    .vazio a { color: #3b82f6; }
-    #aviso { position: fixed; bottom: 1rem; right: 1rem; background: #1e3a2f; color: #6ee7b7; border: 1px solid #2f6b52; padding: .6rem 1rem; border-radius: 6px; font-size: .85rem; opacity: 0; transition: opacity .2s; pointer-events: none; }
-    #aviso.on { opacity: 1; }
-  </style>
-</head>
-<body>
+  return layout({
+    titulo: 'Prints — Admin',
+    pagina: 'prints',
+    apiBase,
+    corpo: `
   <h1>Prints</h1>
   <p class="sub">
     ${resumo.total} print(s), ${kb(resumo.bytes)} no cartão ·
@@ -112,63 +85,6 @@ module.exports = function paginaPrints({ apiBase, lista, resumo }) {
   ${corpo}
 
   <div id="aviso"></div>
-
-  <script>
-    const API = '${apiBase}';
-
-    function avisar(texto) {
-      const el = document.getElementById('aviso');
-      el.textContent = texto;
-      el.classList.add('on');
-      clearTimeout(el._t);
-      el._t = setTimeout(() => el.classList.remove('on'), 1800);
-    }
-
-    /*
-     * A nota salva ao sair do campo, e não a cada tecla: são escritas no cartão
-     * SD, e uma por caractere digitado é justamente o que este projeto evita em
-     * todo lugar. Enter também salva, para quem não quer clicar fora.
-     */
-    document.addEventListener('change', async (ev) => {
-      const campo = ev.target.closest('.nota-in');
-      if (!campo) return;
-
-      const id = campo.closest('.card').dataset.id;
-      try {
-        const r = await fetch(API + '/api/prints/' + id, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nota: campo.value }),
-        });
-        if (!r.ok) throw new Error((await r.json()).error || 'Falhou');
-        avisar('nota salva');
-      } catch (e) {
-        alert('Não deu para salvar a nota: ' + e.message);
-      }
-    });
-
-    document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter' && ev.target.closest('.nota-in')) ev.target.blur();
-    });
-
-    document.addEventListener('click', async (ev) => {
-      const bt = ev.target.closest('.del');
-      if (!bt) return;
-
-      const cartao = bt.closest('.card');
-      // Apagar um print não tem desfazer e o arquivo sai do cartão junto.
-      if (!confirm('Remover este print? O arquivo sai do Pi.')) return;
-
-      try {
-        const r = await fetch(API + '/api/prints/' + cartao.dataset.id, { method: 'DELETE' });
-        if (!r.ok) throw new Error((await r.json()).error || 'Falhou');
-        cartao.remove();
-        avisar('print removido');
-      } catch (e) {
-        alert('Não deu para remover: ' + e.message);
-      }
-    });
-  </script>
-</body>
-</html>`;
+`,
+  });
 };
