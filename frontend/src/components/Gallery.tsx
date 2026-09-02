@@ -75,7 +75,7 @@ export function Gallery() {
         p="$1"
         boxShadow="$out"
       >
-        <TitleBar title="Gallery" icon={<Wangimg128 variant="16x16_4" />} />
+        <TitleBar title="Galeria" icon={<Wangimg128 variant="16x16_4" />} />
 
         <Frame className="flex-1 min-h-0 overflow-hidden" p="$3" pr="$4" bgColor="$material">
           <Frame className="w-full h-full flex items-center justify-center overflow-hidden" bg="white" boxShadow="$in" pt="$2" pl="$2">
@@ -97,7 +97,7 @@ export function Gallery() {
       p="$1"
       boxShadow="$out"
     >
-      <TitleBar title="Gallery" icon={<Wangimg128 variant="16x16_4" />} />
+      <TitleBar title="Galeria" icon={<Wangimg128 variant="16x16_4" />} />
 
       <Frame className="flex-1 min-h-0 overflow-hidden" p="$3" pr="$4" as="figure" bgColor="$material">
         <Frame className="w-full h-full overflow-hidden" bg="white" boxShadow="$in" pt="$1" pl="$1">
