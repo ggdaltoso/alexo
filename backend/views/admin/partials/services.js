@@ -17,35 +17,35 @@ const COR_DO_ESTADO = { active: 'pt-ok', failed: 'pt-erro', inactive: 'pt-off' }
 /** Botões de um serviço. O alvo é sempre o bloco inteiro: uma ação muda a linha
  *  que foi clicada e pode mudar as outras junto (reiniciar o backend derruba
  *  tudo por um instante). */
-function botoes(s) {
-  const rota = (acao) => `/admin/blocos/servicos/${encodeURIComponent(s.chave)}/${acao}`;
-  const comum = (acao) =>
-    `hx-post="${rota(acao)}" hx-target="#servicos" hx-swap="innerHTML"` +
+function buttons(s) {
+  const route = (action) => `/admin/partials/services/${encodeURIComponent(s.key)}/${action}`;
+  const common = (action) =>
+    `hx-post="${route(action)}" hx-target="#servicos" hx-swap="innerHTML"` +
     ` hx-disabled-elt="#servicos button"`;
 
-  const ativo = s.estado === 'active';
+  const active = s.state === 'active';
   return [
-    ativo ? '' : `<button ${comum('start')}>ligar</button>`,
-    s.podeParar && ativo
-      ? `<button ${comum('stop')} hx-confirm="Desligar ${esc(s.chave)}?">desligar</button>`
+    active ? '' : `<button ${common('start')}>ligar</button>`,
+    s.canStop && active
+      ? `<button ${common('stop')} hx-confirm="Desligar ${esc(s.key)}?">desligar</button>`
       : '',
-    `<button ${comum('restart')}>reiniciar</button>`,
+    `<button ${common('restart')}>reiniciar</button>`,
   ].join('');
 }
 
-module.exports = function blocoServicos(servicos) {
-  return servicos.map((s) => {
+module.exports = function servicesBlock(services) {
+  return services.map((s) => {
     // O estado completo vai no title: o ponto sozinho não distingue "inactive"
     // de "failed", e é justamente essa diferença que interessa quando alguma
     // coisa quebrou. Escapado porque o erro vem do stderr do systemctl.
-    const titulo = esc(s.estado + (s.sub ? ` (${s.sub})` : '') + (s.erro ? ` — ${s.erro}` : ''));
+    const title = esc(s.state + (s.sub ? ` (${s.sub})` : '') + (s.error ? ` — ${s.error}` : ''));
 
     return `<div class="linha">` +
       `<span class="k">` +
-        `<span class="pt ${COR_DO_ESTADO[s.estado] || 'pt-meio'}" title="${titulo}"></span>` +
-        `${esc(s.rotulo)}<br><small>${esc(s.descricao)}</small>` +
+        `<span class="pt ${COR_DO_ESTADO[s.state] || 'pt-meio'}" title="${title}"></span>` +
+        `${esc(s.label)}<br><small>${esc(s.description)}</small>` +
       `</span>` +
-      `<span class="btns">${botoes(s)}</span>` +
+      `<span class="btns">${buttons(s)}</span>` +
     `</div>`;
   }).join('');
 };

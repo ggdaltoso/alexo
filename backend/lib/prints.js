@@ -37,7 +37,7 @@ const INDICE = path.join(DATA_DIR, 'prints.json');
 fs.mkdirSync(DIR, { recursive: true });
 fs.mkdirSync(path.dirname(INDICE), { recursive: true });
 
-function ler() {
+function read() {
   try {
     return JSON.parse(fs.readFileSync(INDICE, 'utf-8'));
   } catch (err) {
@@ -50,8 +50,8 @@ function ler() {
   }
 }
 
-function escrever(entradas) {
-  fs.writeFileSync(INDICE, JSON.stringify(entradas, null, 2));
+function write(entries) {
+  fs.writeFileSync(INDICE, JSON.stringify(entries, null, 2));
 }
 
 /**
@@ -62,24 +62,24 @@ function escrever(entradas) {
  * na vida do projeto (708x480 -> 480x320) e é justamente o tipo de coisa que o
  * histórico deve registrar sozinho.
  */
-function dimensoes(png) {
+function dimensions(png) {
   if (png.length < 24 || png.readUInt32BE(12) !== 0x49484452 /* 'IHDR' */) {
-    return { largura: null, altura: null };
+    return { width: null, height: null };
   }
-  return { largura: png.readUInt32BE(16), altura: png.readUInt32BE(20) };
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
 }
 
 /** `2026-09-01T12-02-14` -- ISO sem os dois-pontos, que complicam em alguns sistemas de arquivos. */
-function carimbo(data) {
+function stamp(date) {
   const p = (n) => String(n).padStart(2, '0');
   return (
-    data.getFullYear() + '-' + p(data.getMonth() + 1) + '-' + p(data.getDate()) +
-    'T' + p(data.getHours()) + '-' + p(data.getMinutes()) + '-' + p(data.getSeconds())
+    date.getFullYear() + '-' + p(date.getMonth() + 1) + '-' + p(date.getDate()) +
+    'T' + p(date.getHours()) + '-' + p(date.getMinutes()) + '-' + p(date.getSeconds())
   );
 }
 
-function pasta(data) {
-  return data.getFullYear() + '-' + String(data.getMonth() + 1).padStart(2, '0');
+function folder(date) {
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
 }
 
 /**
@@ -90,24 +90,68 @@ function pasta(data) {
  * sobrescreveria o primeiro e o índice ficaria com duas entradas apontando para
  * o mesmo arquivo.
  */
-function nomeLivre(subpasta, base) {
+function freeName(subfolder, base) {
   for (let n = 1; ; n++) {
-    const nome = n === 1 ? `${base}.png` : `${base}-${n}.png`;
-    if (!fs.existsSync(path.join(DIR, subpasta, nome))) return nome;
+    const name = n === 1 ? `${base}.png` : `${base}-${n}.png`;
+    if (!fs.existsSync(path.join(DIR, subfolder, name))) return name;
   }
 }
 
-function listar() {
+/*
+ * Migração do formato antigo, com as chaves em português.
+ *
+ * O índice vive no Pi e nunca é deployado, então o arquivo que já está lá foi
+ * escrito com `em`, `arquivo`, `nota`, `largura`, `altura` e `contexto`. Ler
+ * isso com os nomes novos daria um histórico de prints sem data, sem nota e
+ * apontando para lugar nenhum -- e a próxima escrita gravaria essa versão vazia
+ * por cima.
+ *
+ * Roda uma vez, na carga do módulo, e só se achar chave antiga. O backup fica
+ * ao lado antes de qualquer escrita: é o cartão SD de um Pi, e um arquivo
+ * truncado no meio da regravação levaria o histórico junto.
+ */
+const CHAVES_ANTIGAS = {
+  em: 'at', arquivo: 'file', nota: 'note', largura: 'width', altura: 'height',
+  contexto: 'context', musica: 'music', faixa: 'track', tocando: 'playing',
+};
+
+function migrarFormatoAntigo() {
+  let entries;
+  try {
+    entries = JSON.parse(fs.readFileSync(INDICE, 'utf-8'));
+  } catch (err) {
+    return; // sem índice ainda, ou ilegível -- o read() já reclama disso
+  }
+  if (!Array.isArray(entries) || !entries.some((e) => e && 'em' in e)) return;
+
+  const renomear = (o) => {
+    if (!o || typeof o !== 'object') return o;
+    const novo = {};
+    for (const [k, v] of Object.entries(o)) {
+      novo[CHAVES_ANTIGAS[k] || k] = v && typeof v === 'object' ? renomear(v) : v;
+    }
+    return novo;
+  };
+
+  const backup = `${INDICE}.bak`;
+  fs.copyFileSync(INDICE, backup);
+  fs.writeFileSync(INDICE, JSON.stringify(entries.map(renomear), null, 2));
+  console.log(`[prints] índice migrado para as chaves novas (${entries.length} prints; backup em ${path.basename(backup)})`);
+}
+
+migrarFormatoAntigo();
+
+function list() {
   // Mais recente primeiro: é a ordem em que se olha um histórico.
-  return ler().sort((a, b) => String(b.em).localeCompare(String(a.em)));
+  return read().sort((a, b) => String(b.at).localeCompare(String(a.at)));
 }
 
 /** Total e bytes ocupados, para a página dizer o tamanho do histórico. */
-function resumo() {
-  const entradas = ler();
+function summary() {
+  const entries = read();
   return {
-    total: entradas.length,
-    bytes: entradas.reduce((soma, e) => soma + (e.bytes || 0), 0),
+    total: entries.length,
+    bytes: entries.reduce((sum, e) => sum + (e.bytes || 0), 0),
   };
 }
 
@@ -116,66 +160,66 @@ function resumo() {
  *
  * `em` é a hora da captura e não a de agora: entre capturar e clicar em guardar
  * passa o tempo de olhar a imagem e escrever a nota, e o que interessa é quando
- * a tela estava daquele jeito. Vale a ressalva que o servicos.js já faz sobre
+ * a tela estava daquele jeito. Vale a ressalva que o services.js já faz sobre
  * timestamps: o Zero W não tem RTC e fica sem NTP quando cai da rede, então em
  * datas absurdas o culpado costuma ser o relógio do Pi.
  */
-function guardar({ png, em, nota, contexto }) {
-  const data = em ? new Date(em) : new Date();
-  const subpasta = pasta(data);
-  fs.mkdirSync(path.join(DIR, subpasta), { recursive: true });
+function save({ png, at, note, context }) {
+  const date = at ? new Date(at) : new Date();
+  const subfolder = folder(date);
+  fs.mkdirSync(path.join(DIR, subfolder), { recursive: true });
 
-  const nome = nomeLivre(subpasta, carimbo(data));
-  const relativo = `${subpasta}/${nome}`;
-  fs.writeFileSync(path.join(DIR, subpasta, nome), png);
+  const name = freeName(subfolder, stamp(date));
+  const relative = `${subfolder}/${name}`;
+  fs.writeFileSync(path.join(DIR, subfolder, name), png);
 
-  const { largura, altura } = dimensoes(png);
-  const entrada = Object.assign(
+  const { width, height } = dimensions(png);
+  const entry = Object.assign(
     {
       id: randomUUID(),
-      arquivo: relativo,
-      em: data.toISOString(),
+      file: relative,
+      at: date.toISOString(),
       bytes: png.length,
-      largura,
-      altura,
-      nota: (nota || '').trim(),
+      width,
+      height,
+      note: (note || '').trim(),
     },
     // Contexto que só o backend sabe na hora da captura -- música tocando, tag
     // encostada. Vai junto porque não dá para reconstruir depois olhando o PNG.
-    contexto || {},
+    context || {},
   );
 
-  const entradas = ler();
-  entradas.push(entrada);
-  escrever(entradas);
-  return entrada;
+  const entries = read();
+  entries.push(entry);
+  write(entries);
+  return entry;
 }
 
-function remover(id) {
-  const entradas = ler();
-  const i = entradas.findIndex((e) => e.id === id);
+function remove(id) {
+  const entries = read();
+  const i = entries.findIndex((e) => e.id === id);
   if (i === -1) return null;
 
-  const [entrada] = entradas.splice(i, 1);
+  const [entry] = entries.splice(i, 1);
   try {
-    fs.unlinkSync(path.join(DIR, entrada.arquivo));
+    fs.unlinkSync(path.join(DIR, entry.file));
   } catch (err) {
     // Arquivo já sumido não impede tirar do índice: o objetivo é justamente
     // deixar os dois em dia, e parar aqui manteria a entrada órfã para sempre.
     if (err.code !== 'ENOENT') throw err;
   }
-  escrever(entradas);
-  return entrada;
+  write(entries);
+  return entry;
 }
 
 /** Anota (ou reanota) um print já guardado. */
-function anotar(id, nota) {
-  const entradas = ler();
-  const entrada = entradas.find((e) => e.id === id);
-  if (!entrada) return null;
-  entrada.nota = String(nota || '').trim();
-  escrever(entradas);
-  return entrada;
+function annotate(id, note) {
+  const entries = read();
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) return null;
+  entry.note = String(note || '').trim();
+  write(entries);
+  return entry;
 }
 
-module.exports = { DIR, INDICE, listar, resumo, guardar, remover, anotar, dimensoes, carimbo, pasta };
+module.exports = { DIR, INDICE, list, summary, save, remove, annotate, dimensions, stamp, folder };

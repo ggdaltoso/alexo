@@ -27,7 +27,7 @@ function albuns() {
   return fs.readdirSync(MUSIC_DIR).filter((d) => fs.statSync(path.join(MUSIC_DIR, d)).isDirectory());
 }
 
-function faixasDe(album, limite) {
+function tracksOf(album, limite) {
   return fs
     .readdirSync(path.join(MUSIC_DIR, album))
     .filter((f) => f.toLowerCase().endsWith('.mp3'))
@@ -41,15 +41,15 @@ function faixasDe(album, limite) {
     }));
 }
 
-function mostra(rotulo, s) {
+function show(label, s) {
   if (!s) {
-    console.log(`  ${rotulo}: (sem status)`);
+    console.log(`  ${label}: (sem status)`);
     return;
   }
   const pos = s.position.toFixed(1);
   const dur = s.duration ? s.duration.toFixed(1) : '?';
   console.log(
-    `  ${rotulo.padEnd(10)} ${s.isPlaying ? 'tocando' : 'parado '}  ` +
+    `  ${label.padEnd(10)} ${s.isPlaying ? 'playing' : 'parado '}  ` +
       `faixa ${s.trackCount ? `${s.trackIndex + 1}/${s.trackCount}` : '-/-'}  ${pos}s/${dur}s  vol ${s.volume}  ${s.title || '-'}`
   );
 }
@@ -60,7 +60,7 @@ async function main() {
     console.error(`nenhum álbum em ${MUSIC_DIR}`);
     process.exit(1);
   }
-  const tracks = faixasDe(album, 3);
+  const tracks = tracksOf(album, 3);
   if (!tracks.length) {
     console.error(`nenhum mp3 em ${album}`);
     process.exit(1);
@@ -78,32 +78,32 @@ async function main() {
   await player.setVolume(VOLUME);
 
   console.log('\n== tocando o álbum ==');
-  mostra('play', await player.playAlbum(album, tracks));
+  show('play', await player.playAlbum(album, tracks));
   await sleep(6000);
-  mostra('+6s', await player.getStatus());
+  show('+6s', await player.getStatus());
 
   console.log('\n== pausa (o gesto de tirar a tag) ==');
-  mostra('pause', await player.pause());
+  show('pause', await player.pause());
   await sleep(2500);
-  mostra('+2.5s', await player.getStatus());
+  show('+2.5s', await player.getStatus());
   console.log('  ^ a posição tem que estar CONGELADA em relação à linha anterior');
 
   console.log('\n== retoma (recolocou a mesma tag) ==');
-  mostra('resume', await player.resume());
+  show('resume', await player.resume());
   await sleep(4000);
-  mostra('+4s', await player.getStatus());
+  show('+4s', await player.getStatus());
 
   console.log('\n== próxima faixa ==');
   await player.next();
   await sleep(3000);
-  mostra('next', await player.getStatus());
+  show('next', await player.getStatus());
 
   console.log('\n== volume ==');
-  mostra('vol 20', await player.setVolume(20));
+  show('vol 20', await player.setVolume(20));
   await sleep(2000);
 
   console.log('\n== stop ==');
-  mostra('stop', await player.stop());
+  show('stop', await player.stop());
 
   player.close();
   console.log('\nfim (o mpv fica ocioso de propósito, para o próximo init reaproveitar)');
@@ -111,7 +111,7 @@ async function main() {
 }
 
 player.on('status', (s) => {
-  if (process.env.VERBOSE) mostra('evento', s);
+  if (process.env.VERBOSE) show('evento', s);
 });
 
 main().catch((err) => {

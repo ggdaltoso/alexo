@@ -1,37 +1,37 @@
 const express = require('express');
 
-const { PORT, ehProducao } = require('../config');
+const { PORT, isProduction } = require('../config');
 const state = require('../lib/state');
 const prints = require('../lib/prints');
-const servicos = require('../lib/servicos');
+const services = require('../lib/services');
 
-const paginaInicial = require('../views/admin/home');
-const paginaMusica = require('../views/admin/musica');
-const paginaGaleria = require('../views/admin/galeria');
-const paginaPrints = require('../views/admin/prints');
-const blocoServicos = require('../views/admin/blocos/servicos');
+const homePage = require('../views/admin/home');
+const musicPage = require('../views/admin/music');
+const galleryPage = require('../views/admin/gallery');
+const printsPage = require('../views/admin/prints');
+const servicesBlock = require('../views/admin/partials/services');
 
 const router = express.Router();
 
 /** Vazio em produção, onde o admin sai do próprio backend e a origem é a mesma. */
-function baseDaApi(req) {
-  return ehProducao ? '' : `http://${req.hostname}:${PORT}`;
+function apiBaseFor(req) {
+  return isProduction ? '' : `http://${req.hostname}:${PORT}`;
 }
 
 router.get('/', (req, res) => {
   const tags = state.getTagMappings();
   // Mapeamento apontando para álbum que sumiu: o sintoma sem isso é "encostei a
   // tag e não tocou", que não sugere nada sobre a causa.
-  const tagsQuebradas = tags.filter((t) => state.getTracksByAlbum(t.album).length === 0);
+  const brokenTags = tags.filter((t) => state.getTracksByAlbum(t.album).length === 0);
 
-  res.send(paginaInicial({
-    apiBase: baseDaApi(req),
-    imagens: state.getGallery().length,
-    faixas: state.getTracks().length,
-    albuns: state.getAlbums().length,
+  res.send(homePage({
+    apiBase: apiBaseFor(req),
+    imageCount: state.getGallery().length,
+    trackCount: state.getTracks().length,
+    albumCount: state.getAlbums().length,
     tags,
-    tagsQuebradas,
-    subiuEm: new Date(Date.now() - process.uptime() * 1000),
+    brokenTags,
+    startedAt: new Date(Date.now() - process.uptime() * 1000),
   }));
 });
 
@@ -39,21 +39,21 @@ router.get('/music', (req, res) => {
   const mappings = state.getTagMappings().map((m) => ({
     uid: m.uid,
     album: m.album,
-    qtd: state.getTracksByAlbum(m.album).length,
+    count: state.getTracksByAlbum(m.album).length,
   }));
 
-  res.send(paginaMusica({ apiBase: baseDaApi(req), albums: state.getAlbums(), mappings }));
+  res.send(musicPage({ apiBase: apiBaseFor(req), albums: state.getAlbums(), mappings }));
 });
 
 router.get('/gallery', (req, res) => {
-  res.send(paginaGaleria({ apiBase: baseDaApi(req), images: state.getGallery() }));
+  res.send(galleryPage({ apiBase: apiBaseFor(req), images: state.getGallery() }));
 });
 
 router.get('/prints', (req, res) => {
-  res.send(paginaPrints({
-    apiBase: baseDaApi(req),
-    lista: prints.listar(),
-    resumo: prints.resumo(),
+  res.send(printsPage({
+    apiBase: apiBaseFor(req),
+    list: prints.list(),
+    summary: prints.summary(),
   }));
 });
 
@@ -64,8 +64,8 @@ router.get('/prints', (req, res) => {
  * /admin/blocos para não se confundirem com as páginas nem com a API JSON --
  * o que volta daqui não serve para mais nada além de ser inserido no DOM.
  */
-router.get('/blocos/servicos', async (req, res) => {
-  res.send(blocoServicos(await servicos.listar()));
+router.get('/partials/services', async (req, res) => {
+  res.send(servicesBlock(await services.list()));
 });
 
 /**
@@ -79,28 +79,28 @@ router.get('/blocos/servicos', async (req, res) => {
  * sair antes do systemd derrubar este processo. O bloco volta com o estado de
  * agora, e o polling reencontra o serviço quando ele voltar.
  */
-router.post('/blocos/servicos/:chave/:acao', async (req, res) => {
-  let plano;
+router.post('/partials/services/:key/:action', async (req, res) => {
+  let plan;
   try {
-    plano = servicos.executar(req.params.chave, req.params.acao);
+    plan = services.prepare(req.params.key, req.params.action);
   } catch (err) {
     return res.status(400).send(`<div class="linha"><span class="k erro">${err.message}</span></div>`);
   }
 
-  if (plano.suicida) {
-    res.send(blocoServicos(await servicos.listar()));
+  if (plan.selfKilling) {
+    res.send(servicesBlock(await services.list()));
     setTimeout(() => {
-      plano.rodar().catch((err) => console.error('[servicos] restart falhou:', err.message));
+      plan.run().catch((err) => console.error('[services] restart falhou:', err.message));
     }, 250);
     return;
   }
 
   try {
-    await plano.rodar();
+    await plan.run();
   } catch (err) {
-    console.error(`[servicos] ${req.params.acao} em ${req.params.chave} falhou:`, err.message);
+    console.error(`[services] ${req.params.action} em ${req.params.key} falhou:`, err.message);
   }
-  res.send(blocoServicos(await servicos.listar()));
+  res.send(servicesBlock(await services.list()));
 });
 
 module.exports = router;

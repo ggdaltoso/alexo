@@ -19,7 +19,7 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 module.exports = {
   PORT: process.env.PORT || 3001,
   NODE_ENV,
-  ehProducao: NODE_ENV === 'production',
+  isProduction: NODE_ENV === 'production',
 
   RAIZ,
   DATA_DIR: path.join(RAIZ, 'data'),

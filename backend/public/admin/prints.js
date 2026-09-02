@@ -1,6 +1,6 @@
 const API = window.ADMIN_API;
 
-function avisar(texto) {
+function notify(texto) {
   const el = document.getElementById('aviso');
   el.textContent = texto;
   el.classList.add('on');
@@ -14,18 +14,18 @@ function avisar(texto) {
  * todo lugar. Enter também salva, para quem não quer clicar fora.
  */
 document.addEventListener('change', async (ev) => {
-  const campo = ev.target.closest('.nota-in');
-  if (!campo) return;
+  const field = ev.target.closest('.nota-in');
+  if (!field) return;
 
-  const id = campo.closest('.card').dataset.id;
+  const id = field.closest('.card').dataset.id;
   try {
     const r = await fetch(API + '/api/prints/' + id, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nota: campo.value }),
+      body: JSON.stringify({ note: field.value }),
     });
     if (!r.ok) throw new Error((await r.json()).error || 'Falhou');
-    avisar('nota salva');
+    notify('nota salva');
   } catch (e) {
     alert('Não deu para salvar a nota: ' + e.message);
   }
@@ -39,15 +39,15 @@ document.addEventListener('click', async (ev) => {
   const bt = ev.target.closest('.del');
   if (!bt) return;
 
-  const cartao = bt.closest('.card');
+  const card = bt.closest('.card');
   // Apagar um print não tem desfazer e o arquivo sai do cartão junto.
   if (!confirm('Remover este print? O arquivo sai do Pi.')) return;
 
   try {
-    const r = await fetch(API + '/api/prints/' + cartao.dataset.id, { method: 'DELETE' });
+    const r = await fetch(API + '/api/prints/' + card.dataset.id, { method: 'DELETE' });
     if (!r.ok) throw new Error((await r.json()).error || 'Falhou');
-    cartao.remove();
-    avisar('print removido');
+    card.remove();
+    notify('print removido');
   } catch (e) {
     alert('Não deu para remover: ' + e.message);
   }

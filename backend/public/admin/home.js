@@ -15,9 +15,9 @@ async function tick() {
 
     // O player não expõe "disponível" direto; volume nulo é o sinal de que
     // não há mpv atendendo do outro lado.
-    const vivo = player && player.volume !== undefined && player.volume !== null;
-    $('playerEstado').textContent = vivo ? 'conectado' : 'sem mpv';
-    $('playerEstado').className = 'v ' + (vivo ? 'ok' : 'off');
+    const alive = player && player.volume !== undefined && player.volume !== null;
+    $('playerEstado').textContent = alive ? 'conectado' : 'sem mpv';
+    $('playerEstado').className = 'v ' + (alive ? 'ok' : 'off');
 
     $('pAlbum').textContent = player.album || '—';
     $('pFaixa').textContent = player.title
@@ -26,7 +26,7 @@ async function tick() {
     $('pPos').textContent = player.title
       ? (player.isPlaying ? '▶ ' : '|| ') + mm(player.position) + (player.duration ? ' / ' + mm(player.duration) : '')
       : '—';
-    $('pVol').textContent = vivo ? player.volume : '—';
+    $('pVol').textContent = alive ? player.volume : '—';
   } catch (e) {
     // backend reiniciando: a próxima volta pega
   }
@@ -45,8 +45,8 @@ async function tick() {
  * para a rota, salvar dispararia uma segunda captura e o arquivo salvo
  * seria de um instante diferente do que está na tela.
  */
-let urlDoPrint = null;
-let emDaCaptura = null;
+let printUrl = null;
+let captureTakenAt = null;
 
 $('btPrint').addEventListener('click', async () => {
   const b = $('btPrint');
@@ -57,23 +57,23 @@ $('btPrint').addEventListener('click', async () => {
     const r = await fetch(API + '/api/system/screenshot');
     // O erro vem em JSON mesmo numa rota que responde PNG; ver a rota.
     if (!r.ok) {
-      const corpo = await r.json().catch(() => ({}));
-      throw new Error(corpo.error || 'Falhou');
+      const body = await r.json().catch(() => ({}));
+      throw new Error(body.error || 'Falhou');
     }
 
     // Sem o revoke o blob anterior fica preso na memória do navegador até
     // fechar a aba, e são ~80 KB por clique.
-    if (urlDoPrint) URL.revokeObjectURL(urlDoPrint);
-    urlDoPrint = URL.createObjectURL(await r.blob());
+    if (printUrl) URL.revokeObjectURL(printUrl);
+    printUrl = URL.createObjectURL(await r.blob());
 
     // A hora da captura viaja com a imagem: é o que o "guardar" devolve
     // para o backend confirmar que salvou o print que estava na tela.
-    emDaCaptura = r.headers.get('X-Print-Em');
+    captureTakenAt = r.headers.get('X-Print-Em');
 
-    const nome = 'alexo-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.png';
+    const name = 'alexo-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.png';
     $('print').innerHTML =
-      '<img src="' + urlDoPrint + '" alt="Print da tela do Pi" />' +
-      '<a href="' + urlDoPrint + '" download="' + nome + '">baixar ' + nome + '</a>';
+      '<img src="' + printUrl + '" alt="Print da tela do Pi" />' +
+      '<a href="' + printUrl + '" download="' + name + '">baixar ' + name + '</a>';
     $('print').classList.add('visivel');
 
     // A linha de guardar só existe depois de haver o que guardar.
@@ -105,10 +105,10 @@ $('btGuardar').addEventListener('click', async () => {
     const r = await fetch(API + '/api/prints', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ em: emDaCaptura, nota: $('nota').value }),
+      body: JSON.stringify({ at: captureTakenAt, note: $('nota').value }),
     });
-    const corpo = await r.json();
-    if (!r.ok) throw new Error(corpo.error || 'Falhou');
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || 'Falhou');
 
     // Confirmação no próprio botão em vez de alert: guardar é a ação
     // esperada, e um alert por print viraria um clique a mais toda vez.
@@ -128,18 +128,18 @@ $('btGuardar').addEventListener('click', async () => {
  * o polling para: ficar tentando buscar status de uma maquina que esta
  * caindo so encheria o console de erro.
  */
-async function maquina(acao, pergunta) {
+async function machine(action, pergunta) {
   if (!confirm(pergunta)) return;
 
   try {
-    const r = await fetch(API + '/api/system/' + acao, { method: 'POST' });
-    const corpo = await r.json();
-    if (!r.ok) return alert(corpo.error || 'Falhou');
+    const r = await fetch(API + '/api/system/' + action, { method: 'POST' });
+    const body = await r.json();
+    if (!r.ok) return alert(body.error || 'Falhou');
   } catch (e) {
     // A máquina pode cair antes da resposta chegar; não é erro.
   }
 
-  clearInterval(pulso);
+  clearInterval(heartbeat);
   document.querySelectorAll('button').forEach((b) => (b.disabled = true));
 
   // outerHTML, e não innerHTML: o #servicos se repinta sozinho pelo htmx, e
@@ -148,18 +148,18 @@ async function maquina(acao, pergunta) {
   // recolhe o timer junto com o nó que saiu.
   $('servicos').outerHTML =
     '<div class="card"><div class="linha"><span class="k">' +
-    (acao === 'reboot'
+    (action === 'reboot'
       ? 'Reiniciando… recarregue a página em cerca de um minuto.'
       : 'Desligando. Para ligar de novo é preciso ir até o Pi.') +
     '</span></div></div>';
 }
 
 $('btReboot').addEventListener('click', () =>
-  maquina('reboot', 'Reiniciar o Pi? A tela apaga e volta em cerca de um minuto.'));
+  machine('reboot', 'Reiniciar o Pi? A tela apaga e volta em cerca de um minuto.'));
 
 $('btPoweroff').addEventListener('click', () =>
-  maquina('poweroff', 'DESLIGAR o Pi?\\n\\nNão há como ligar de volta pela rede: ' +
+  machine('poweroff', 'DESLIGAR o Pi?\\n\\nNão há como ligar de volta pela rede: ' +
     'o Zero W não tem wake-on-LAN. Só indo até ele.'));
 
 tick();
-const pulso = setInterval(tick, 2000);
+const heartbeat = setInterval(tick, 2000);

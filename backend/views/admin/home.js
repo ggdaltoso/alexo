@@ -7,14 +7,14 @@
  */
 const layout = require('./layout');
 
-module.exports = function paginaInicial({ apiBase, imagens, faixas, albuns, tags, tagsQuebradas, subiuEm }) {
+module.exports = function homePage({ apiBase, imageCount, trackCount, albumCount, tags, brokenTags, startedAt }) {
   return layout({
-    titulo: 'Alexo — Admin',
-    pagina: 'home',
+    title: 'Alexo — Admin',
+    page: 'home',
     apiBase,
-    corpo: `
+    body: `
   <h1>Alexo — Admin</h1>
-  <p class="sub">backend no ar desde ${subiuEm.toLocaleString('pt-BR')}</p>
+  <p class="sub">backend no ar desde ${startedAt.toLocaleString('pt-BR')}</p>
 
   <div class="acoes">
     <a href="/admin/gallery">Galeria</a>
@@ -24,13 +24,13 @@ module.exports = function paginaInicial({ apiBase, imagens, faixas, albuns, tags
 
   <h2>Conteúdo</h2>
   <div class="grid">
-    <a class="card" href="/admin/gallery"><div class="num">${imagens}</div><div class="rot">imagens na galeria</div></a>
-    <a class="card" href="/admin/music"><div class="num">${albuns}</div><div class="rot">álbuns</div></a>
-    <a class="card" href="/admin/music"><div class="num">${faixas}</div><div class="rot">faixas no catálogo</div></a>
-    <a class="card ${tagsQuebradas.length ? 'warn' : ''}" href="/admin/music">
+    <a class="card" href="/admin/gallery"><div class="num">${imageCount}</div><div class="rot">imagens na galeria</div></a>
+    <a class="card" href="/admin/music"><div class="num">${albumCount}</div><div class="rot">álbuns</div></a>
+    <a class="card" href="/admin/music"><div class="num">${trackCount}</div><div class="rot">faixas no catálogo</div></a>
+    <a class="card ${brokenTags.length ? 'warn' : ''}" href="/admin/music">
       <div class="num">${tags.length}</div>
-      <div class="rot">${tagsQuebradas.length
-        ? `tags — ${tagsQuebradas.length} apontando para álbum inexistente`
+      <div class="rot">${brokenTags.length
+        ? `tags — ${brokenTags.length} apontando para álbum inexistente`
         : 'tags cadastradas'}</div>
     </a>
   </div>
@@ -52,7 +52,7 @@ module.exports = function paginaInicial({ apiBase, imagens, faixas, albuns, tags
 
   <h2>Serviços</h2>
   <div class="card" id="servicos"
-       hx-get="/admin/blocos/servicos"
+       hx-get="/admin/partials/services"
        hx-trigger="load, every 2s"
        hx-swap="innerHTML"
        hx-sync="this:replace"><div class="linha"><span class="k">carregando…</span></div></div>

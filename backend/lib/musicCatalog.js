@@ -19,63 +19,63 @@ const { MUSICA_DIR: MUSIC_DIR } = require('../config');
  * aleatório faria cada reimportação gerar ids novos para os mesmos arquivos.
  * Com id derivado do caminho, reimportar é idempotente.
  */
-function idDoCaminho(relativo) {
-  return crypto.createHash('sha1').update(relativo).digest('hex').slice(0, 16);
+function idFromPath(relative) {
+  return crypto.createHash('sha1').update(relative).digest('hex').slice(0, 16);
 }
 
 /** `01 Title ~ Link to the Past.mp3` -> `Title ~ Link to the Past` */
-function tituloDoArquivo(nomeArquivo) {
+function titleFromFile(nomeArquivo) {
   return nomeArquivo
     .replace(/\.mp3$/i, '')
     .replace(/^\d+\s*[-.]?\s*/, '')
     .trim();
 }
 
-function varrer(dir, base) {
-  let achados = [];
-  let entradas;
+function walk(dir, base) {
+  let found = [];
+  let entries;
   try {
-    entradas = fs.readdirSync(dir, { withFileTypes: true });
+    entries = fs.readdirSync(dir, { withFileTypes: true });
   } catch (err) {
     if (err.code === 'ENOENT') return [];
     throw err;
   }
-  for (const entrada of entradas) {
-    const completo = path.join(dir, entrada.name);
-    if (entrada.isDirectory()) {
-      achados = achados.concat(varrer(completo, base));
-    } else if (entrada.name.toLowerCase().endsWith('.mp3')) {
-      achados.push(path.relative(base, completo));
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      found = found.concat(walk(fullPath, base));
+    } else if (entry.name.toLowerCase().endsWith('.mp3')) {
+      found.push(path.relative(base, fullPath));
     }
   }
-  return achados;
+  return found;
 }
 
 /** Varre o disco e devolve o catálogo, sem gravar nada. */
 function scan() {
-  return varrer(MUSIC_DIR, MUSIC_DIR)
+  return walk(MUSIC_DIR, MUSIC_DIR)
     .sort()
-    .map((relativo) => {
-      const pasta = path.dirname(relativo);
+    .map((relative) => {
+      const folder = path.dirname(relative);
       return {
-        id: idDoCaminho(relativo),
+        id: idFromPath(relative),
         // Um MP3 solto na raiz não tem pasta pai; `.` viraria um álbum de nome
         // esquisito no admin.
-        album: pasta === '.' ? 'Sem álbum' : path.basename(pasta),
-        title: tituloDoArquivo(path.basename(relativo)),
-        filename: relativo,
+        album: folder === '.' ? 'Sem álbum' : path.basename(folder),
+        title: titleFromFile(path.basename(relative)),
+        filename: relative,
         duration: null, // só é conhecida na primeira reprodução
       };
     });
 }
 
 /** Compara o disco com o catálogo atual, sem gravar. */
-function diff(anteriores, atuais) {
-  const idsAntes = new Set(anteriores.map((t) => t.id));
-  const idsDepois = new Set(atuais.map((t) => t.id));
+function diff(previous, atuais) {
+  const idsBefore = new Set(previous.map((t) => t.id));
+  const idsAfter = new Set(atuais.map((t) => t.id));
   return {
-    novos: atuais.filter((t) => !idsAntes.has(t.id)),
-    sumidos: anteriores.filter((t) => !idsDepois.has(t.id)),
+    added: atuais.filter((t) => !idsBefore.has(t.id)),
+    removed: previous.filter((t) => !idsAfter.has(t.id)),
   };
 }
 

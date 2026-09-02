@@ -1,33 +1,33 @@
 /** `mappings` chega com o `qtd` já contado pela rota. */
 const layout = require('./layout');
 
-module.exports = function paginaMusica({ apiBase, albums, mappings }) {
-  const opcoes = albums
+module.exports = function musicPage({ apiBase, albums, mappings }) {
+  const options = albums
     .map((a) => `<option value="${a.replace(/"/g, '&quot;')}">${a}</option>`)
     .join('');
 
-  const linhas = mappings.length === 0
+  const rows = mappings.length === 0
     ? '<tr><td colspan="4" class="vazio">Nenhuma tag cadastrada.</td></tr>'
-    : mappings.map(({ uid, album, qtd }) => {
-        // Álbum sem faixas = pasta renomeada depois do cadastro. Precisa gritar,
+    : mappings.map(({ uid, album, count }) => {
+        // Álbum sem tracks = folder renomeada depois do cadastro. Precisa gritar,
         // porque o sintoma sem isso é "encostei a tag e não tocou".
-        const aviso = qtd === 0 ? ' <span class="erro">sem faixas!</span>' : '';
+        const notify = count === 0 ? ' <span class="error">sem tracks!</span>' : '';
         return `<tr>
           <td class="uid">${uid}</td>
-          <td>${album}${aviso}</td>
-          <td>${qtd}</td>
+          <td>${album}${notify}</td>
+          <td>${count}</td>
           <td>
-            <button onclick="tocar('${album.replace(/'/g, "\\'")}')">Tocar</button>
-            <button class="del" onclick="remover('${uid}', '${album.replace(/'/g, "\\'")}')">Remover</button>
+            <button onclick="play('${album.replace(/'/g, "\\'")}')">Tocar</button>
+            <button class="del" onclick="remove('${uid}', '${album.replace(/'/g, "\\'")}')">Remover</button>
           </td>
         </tr>`;
       }).join('');
 
   return layout({
-    titulo: 'Música — Admin',
-    pagina: 'musica',
+    title: 'Música — Admin',
+    page: 'musica',
     apiBase,
-    corpo: `
+    body: `
   <h1>Música — Admin</h1>
   <p class="nav"><a href="/admin">← Admin</a> · <a href="/admin/gallery">Galeria</a></p>
 
@@ -37,7 +37,7 @@ module.exports = function paginaMusica({ apiBase, albums, mappings }) {
       <span>Tag no leitor:</span>
       <span class="pill" id="pill">nenhuma</span>
       <input id="uid" placeholder="UID (ou encoste uma tag)" size="20" />
-      <select id="album">${opcoes}</select>
+      <select id="album">${options}</select>
       <button onclick="salvar()">Mapear</button>
     </div>
     <div class="status" id="msg"></div>
@@ -47,14 +47,14 @@ module.exports = function paginaMusica({ apiBase, albums, mappings }) {
   <div class="box">
     <table>
       <thead><tr><th>UID</th><th>Álbum</th><th>Faixas</th><th></th></tr></thead>
-      <tbody>${linhas}</tbody>
+      <tbody>${rows}</tbody>
     </table>
   </div>
 
   <h2>Player</h2>
   <div class="box">
     <div class="leitor">
-      <select id="pAlbum" onchange="carregarFaixas()">${opcoes}</select>
+      <select id="pAlbum" onchange="carregarFaixas()">${options}</select>
       <select id="pFaixa"><option>carregando...</option></select>
       <button onclick="tocarSelecao()">Tocar</button>
     </div>

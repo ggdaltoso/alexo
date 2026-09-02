@@ -60,6 +60,6 @@ nfc.init().then((ok) => {
     console.error('  python3 backend/scripts/pn532-i2c-probe.py --bus 3');
     process.exit(1);
   }
-  console.log(`${at()}  pronto. Encoste uma tag.${seconds ? ` Para em ${seconds}s.` : ' Ctrl+C para sair.'}`);
+  console.log(`${at()}  pronto. Encoste uma tag.${seconds ? ` Para at ${seconds}s.` : ' Ctrl+C para sair.'}`);
   if (seconds) setTimeout(() => finish('fim do tempo'), seconds * 1000);
 });

@@ -149,8 +149,8 @@ function removeTrack(id) {
 
 /** Nomes de álbum distintos, em ordem alfabética. */
 function getAlbums() {
-  const nomes = new Set(readTracks().map((t) => t.album));
-  return [...nomes].sort((a, b) => a.localeCompare(b));
+  const names = new Set(readTracks().map((t) => t.album));
+  return [...names].sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -197,9 +197,9 @@ function getTagMapping(uid) {
 /** Upsert: cadastrar a mesma tag de novo troca o álbum em vez de duplicar. */
 function setTagMapping({ uid, album }) {
   const mappings = readTagMappings();
-  const existente = mappings.find((m) => m.uid === uid);
-  if (existente) {
-    existente.album = album;
+  const existing = mappings.find((m) => m.uid === uid);
+  if (existing) {
+    existing.album = album;
   } else {
     mappings.push({ uid, album });
   }
