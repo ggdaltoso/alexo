@@ -10,6 +10,7 @@
  * nome ordena sozinho -- mas deixou de ser a única forma de achar as coisas.
  */
 const layout = require('./layout');
+const esc = require('./esc');
 
 module.exports = function paginaPrints({ apiBase, lista, resumo }) {
   // Nomes de mês à mão em vez de toLocaleDateString('pt-BR'): o Node do Pi é um
@@ -18,9 +19,6 @@ module.exports = function paginaPrints({ apiBase, lista, resumo }) {
   // página meses depois.
   const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
     'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-
-  const esc = (t) => String(t == null ? '' : t)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB');
 

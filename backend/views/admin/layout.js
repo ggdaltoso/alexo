@@ -13,6 +13,7 @@ module.exports = function layout({ titulo, pagina, apiBase, corpo }) {
   <title>${titulo}</title>
   <link rel="stylesheet" href="/admin/assets/base.css" />
   <link rel="stylesheet" href="/admin/assets/${pagina}.css" />
+  <script src="/admin/assets/vendor/htmx.min.js" defer></script>
 </head>
 <body>
 ${corpo}

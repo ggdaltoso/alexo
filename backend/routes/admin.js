@@ -3,11 +3,13 @@ const express = require('express');
 const { PORT, ehProducao } = require('../config');
 const state = require('../lib/state');
 const prints = require('../lib/prints');
+const servicos = require('../lib/servicos');
 
 const paginaInicial = require('../views/admin/home');
 const paginaMusica = require('../views/admin/musica');
 const paginaGaleria = require('../views/admin/galeria');
 const paginaPrints = require('../views/admin/prints');
+const blocoServicos = require('../views/admin/blocos/servicos');
 
 const router = express.Router();
 
@@ -53,6 +55,52 @@ router.get('/prints', (req, res) => {
     lista: prints.listar(),
     resumo: prints.resumo(),
   }));
+});
+
+/*
+ * Fragmentos.
+ *
+ * Pedaços de HTML sem página em volta, para o htmx trocar no lugar. Ficam sob
+ * /admin/blocos para não se confundirem com as páginas nem com a API JSON --
+ * o que volta daqui não serve para mais nada além de ser inserido no DOM.
+ */
+router.get('/blocos/servicos', async (req, res) => {
+  res.send(blocoServicos(await servicos.listar()));
+});
+
+/**
+ * Executa a ação e devolve o bloco já atualizado.
+ *
+ * Uma resposta só, em vez de "faz" e depois "lê": era isso que o cliente fazia
+ * com um setTimeout de 1,2s, chutando quanto tempo o systemd levava para
+ * assentar. Aqui o estado é lido depois da ação ter terminado de fato.
+ *
+ * Reiniciar o próprio backend é a exceção: o plano é suicida, a resposta tem de
+ * sair antes do systemd derrubar este processo. O bloco volta com o estado de
+ * agora, e o polling reencontra o serviço quando ele voltar.
+ */
+router.post('/blocos/servicos/:chave/:acao', async (req, res) => {
+  let plano;
+  try {
+    plano = servicos.executar(req.params.chave, req.params.acao);
+  } catch (err) {
+    return res.status(400).send(`<div class="linha"><span class="k erro">${err.message}</span></div>`);
+  }
+
+  if (plano.suicida) {
+    res.send(blocoServicos(await servicos.listar()));
+    setTimeout(() => {
+      plano.rodar().catch((err) => console.error('[servicos] restart falhou:', err.message));
+    }, 250);
+    return;
+  }
+
+  try {
+    await plano.rodar();
+  } catch (err) {
+    console.error(`[servicos] ${req.params.acao} em ${req.params.chave} falhou:`, err.message);
+  }
+  res.send(blocoServicos(await servicos.listar()));
 });
 
 module.exports = router;

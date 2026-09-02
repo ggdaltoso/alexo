@@ -1,7 +1,9 @@
 const path = require('path');
 const express = require('express');
 
-const { NODE_ENV, ehProducao, UPLOADS_DIR, FRONTEND_DIST, PUBLIC_ADMIN_DIR } = require('./config');
+const {
+  NODE_ENV, ehProducao, UPLOADS_DIR, FRONTEND_DIST, PUBLIC_ADMIN_DIR, HTMX_DIR,
+} = require('./config');
 const rotas = require('./routes');
 
 const app = express();
@@ -25,6 +27,11 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 // O CSS e o JS das páginas de admin. Montado em /admin/assets, e não em /admin,
 // para não haver como um arquivo do disco sombrear uma rota de página.
 app.use('/admin/assets', express.static(PUBLIC_ADMIN_DIR));
+
+// O htmx sai do node_modules em vez de ser copiado para public/: assim ele é
+// uma dependência como as outras -- aparece no package.json, atualiza por npm e
+// não entra no diff do repo. O deploy já roda `npm install --production` no Pi.
+app.use('/admin/assets/vendor', express.static(HTMX_DIR));
 
 app.use(rotas);
 

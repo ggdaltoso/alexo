@@ -11,6 +11,8 @@ a.card:hover { border-color: var(--acento); }
 .linha .k { color: var(--texto-fraco); }
 .v { font-family: ui-monospace, monospace; }
 .ok { color: var(--ok); }
+/* A linha que o fragmento devolve quando a ação é recusada. */
+.k.erro { color: var(--erro); }
 .off { color: var(--erro); }
 .warn { background: #422006; border-color: #854d0e; }
 .warn .rot { color: var(--aviso); }

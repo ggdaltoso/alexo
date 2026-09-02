@@ -4,13 +4,10 @@ const mm = (v) => String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(Mat
 
 async function tick() {
   try {
-    const [leitor, player, servicos] = await Promise.all([
+    const [leitor, player] = await Promise.all([
       fetch(API + '/api/music/reader').then((r) => r.json()),
       fetch(API + '/api/music/player/status').then((r) => r.json()),
-      fetch(API + '/api/services').then((r) => r.json()),
     ]);
-
-    pinta(servicos);
 
     $('leitorEstado').textContent = leitor.running ? 'ativo' : 'inativo';
     $('leitorEstado').className = 'v ' + (leitor.running ? 'ok' : 'off');
@@ -36,81 +33,12 @@ async function tick() {
 }
 
 /*
- * Serviços.
- *
- * Redesenhado a cada volta e não só na carga, porque um "stop" daqui muda
- * o estado e um "restart" do backend muda duas vezes -- cai e volta.
- */
-let mexendo = null; // chave em ação: trava os botões e evita o piscar do polling
-
-// Estado do systemd -> cor do ponto. O que nao estiver aqui (activating,
-// deactivating, desconhecido) cai no amarelo: e transitorio ou ilegivel,
-// e nos dois casos "nem verde nem vermelho" e a leitura honesta.
-const COR_DO_ESTADO = { active: 'pt-ok', failed: 'pt-erro', inactive: 'pt-off' };
-
-const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-
-function pinta(servicos) {
-  if (mexendo) return;
-  $('servicos').innerHTML = servicos.map((s) => {
-    const ativo = s.estado === 'active';
-    const botoes = [
-      ativo ? '' : '<button data-s="' + s.chave + '" data-a="start">ligar</button>',
-      s.podeParar && ativo ? '<button data-s="' + s.chave + '" data-a="stop">desligar</button>' : '',
-      '<button data-s="' + s.chave + '" data-a="restart">reiniciar</button>',
-    ].join('');
-
-    // O estado completo vai no title: o ponto sozinho nao distingue
-    // "inactive" de "failed", e e justamente essa diferenca que interessa
-    // quando alguma coisa quebrou. Escapado porque o erro vem do stderr do
-    // systemctl e pode conter aspas.
-    const titulo = esc(
-      s.estado + (s.sub ? ' (' + s.sub + ')' : '') + (s.erro ? ' — ' + s.erro : ''),
-    );
-
-    return '<div class="linha">' +
-      '<span class="k">' +
-        '<span class="pt ' + (COR_DO_ESTADO[s.estado] || 'pt-meio') + '" title="' + titulo + '"></span>' +
-        esc(s.rotulo) + '<br><small>' + esc(s.descricao) + '</small>' +
-      '</span>' +
-      '<span class="btns">' + botoes + '</span>' +
-      '</div>';
-  }).join('');
-}
-
-$('servicos').addEventListener('click', async (ev) => {
-  const b = ev.target.closest('button');
-  if (!b || mexendo) return;
-
-  const chave = b.dataset.s, acao = b.dataset.a;
-  if (acao === 'stop' && !confirm('Desligar ' + chave + '?')) return;
-
-  mexendo = chave;
-  $('servicos').querySelectorAll('button').forEach((x) => (x.disabled = true));
-  b.textContent = '...';
-
-  try {
-    const r = await fetch(API + '/api/services/' + chave + '/' + acao, { method: 'POST' });
-    const corpo = await r.json();
-    if (!r.ok) alert(corpo.error || 'Falhou');
-  } catch (e) {
-    // Reiniciar o backend derruba a conexão às vezes antes da resposta
-    // chegar. Não é erro: o serviço volta e o polling reencontra.
-    if (chave !== 'alexo') alert('Falhou: ' + e.message);
-  }
-
-  mexendo = null;
-  // O systemd leva um instante para assentar; ler cedo mostra o estado velho.
-  setTimeout(tick, 1200);
-});
-
-/*
  * Print da tela.
  *
  * A captura leva ~0,8 s no Zero W, então o botão precisa dizer que está
  * fazendo alguma coisa: sem isso o clique parece não ter pegado e vira dois
- * cliques. Desabilitar durante a captura é a mesma ideia do "mexendo" dos
- * serviços, e casa com a trava que o backend já tem.
+ * cliques. Desabilitar durante a captura casa com a trava que o backend já
+ * tem -- é a mesma ideia do hx-disabled-elt que os botões de serviço usam.
  *
  * A imagem vem como blob em vez de <img src="/api/system/screenshot">
  * porque o link de salvar aproveita o mesmo objeto -- com src apontando
@@ -213,12 +141,17 @@ async function maquina(acao, pergunta) {
 
   clearInterval(pulso);
   document.querySelectorAll('button').forEach((b) => (b.disabled = true));
-  $('servicos').innerHTML =
-    '<div class="linha"><span class="k">' +
+
+  // outerHTML, e não innerHTML: o #servicos se repinta sozinho pelo htmx, e
+  // trocar só o conteúdo deixaria o polling vivo para apagar esta mensagem na
+  // volta seguinte. Substituindo o elemento inteiro por um sem hx-*, o htmx
+  // recolhe o timer junto com o nó que saiu.
+  $('servicos').outerHTML =
+    '<div class="card"><div class="linha"><span class="k">' +
     (acao === 'reboot'
       ? 'Reiniciando… recarregue a página em cerca de um minuto.'
       : 'Desligando. Para ligar de novo é preciso ir até o Pi.') +
-    '</span></div>';
+    '</span></div></div>';
 }
 
 $('btReboot').addEventListener('click', () =>

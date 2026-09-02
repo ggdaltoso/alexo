@@ -51,7 +51,11 @@ module.exports = function paginaInicial({ apiBase, imagens, faixas, albuns, tags
   </div>
 
   <h2>Serviços</h2>
-  <div class="card" id="servicos"><div class="linha"><span class="k">carregando…</span></div></div>
+  <div class="card" id="servicos"
+       hx-get="/admin/blocos/servicos"
+       hx-trigger="load, every 2s"
+       hx-swap="innerHTML"
+       hx-sync="this:replace"><div class="linha"><span class="k">carregando…</span></div></div>
   <p class="nota">
     Sem autenticação: qualquer um na rede que abrir esta página pode parar os serviços.
     O Backend não tem botão de parar de propósito — pará-lo mataria o servidor
