@@ -27,8 +27,8 @@ export default function App() {
    * ficava mais larga que a coluna. Além disso era lido uma vez só, no primeiro
    * render, então não acompanhava redimensionamento.
    */
-  const [larguraBarra, setLarguraBarra] = useState(0);
-  const observador = useRef<ResizeObserver | null>(null);
+  const [barWidth, setBarWidth] = useState(0);
+  const observer = useRef<ResizeObserver | null>(null);
 
   /*
    * Callback ref, e não useRef + useEffect([]).
@@ -38,13 +38,13 @@ export default function App() {
    * nula, sairia -- e nunca mais rodaria, deixando a largura em 0 para sempre.
    * O callback ref dispara quando o nó realmente entra no DOM.
    */
-  const medirArea = useCallback((el: HTMLDivElement | null) => {
-    observador.current?.disconnect();
+  const measureArea = useCallback((el: HTMLDivElement | null) => {
+    observer.current?.disconnect();
     if (!el) return;
-    observador.current = new ResizeObserver(([entrada]) =>
-      setLarguraBarra(Math.round(entrada.contentRect.width))
+    observer.current = new ResizeObserver(([entrada]) =>
+      setBarWidth(Math.round(entrada.contentRect.width))
     );
-    observador.current.observe(el);
+    observer.current.observe(el);
   }, []);
 
   if (loading) {
@@ -67,10 +67,10 @@ export default function App() {
           <Route path="/todo" element={<TodoScreen />} />
         </Routes>
       </div>
-      <div ref={medirArea} className="w-full">
+      <div ref={measureArea} className="w-full">
         <Frame width="100%">
           <ProgressBar
-            width={`${larguraBarra}px`}
+            width={`${barWidth}px`}
             percent={Math.min(100, Math.max(0, timerProgress))}
           />
         </Frame>

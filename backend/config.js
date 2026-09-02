@@ -19,7 +19,7 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 module.exports = {
   PORT: process.env.PORT || 3001,
   NODE_ENV,
-  ehProducao: NODE_ENV === 'production',
+  isProduction: NODE_ENV === 'production',
 
   RAIZ,
   DATA_DIR: path.join(RAIZ, 'data'),
@@ -29,5 +29,6 @@ module.exports = {
   PRINTS_DIR: path.join(RAIZ, 'uploads', 'prints'),
   SCRIPTS_DIR: path.join(RAIZ, 'scripts'),
   PUBLIC_ADMIN_DIR: path.join(RAIZ, 'public', 'admin'),
+  HTMX_DIR: path.join(RAIZ, 'node_modules', 'htmx.org', 'dist'),
   FRONTEND_DIST: path.join(RAIZ, '..', 'frontend', 'dist'),
 };

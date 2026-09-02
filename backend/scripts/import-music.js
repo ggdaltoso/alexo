@@ -29,25 +29,25 @@ function main() {
     process.exit(1);
   }
 
-  const anteriores = state.getTracks();
-  const { novos, sumidos } = catalog.diff(anteriores, tracks);
+  const previous = state.getTracks();
+  const { added, removed } = catalog.diff(previous, tracks);
 
-  const porAlbum = new Map();
-  for (const t of tracks) porAlbum.set(t.album, (porAlbum.get(t.album) || 0) + 1);
+  const byAlbum = new Map();
+  for (const t of tracks) byAlbum.set(t.album, (byAlbum.get(t.album) || 0) + 1);
 
-  console.log(`${tracks.length} faixa(s) em ${porAlbum.size} álbum(ns):\n`);
+  console.log(`${tracks.length} faixa(s) em ${byAlbum.size} álbum(ns):\n`);
   // Comparador explícito: o sort() padrão converte cada par em "album,qtd" e
   // compara a string inteira, então a vírgula participa da ordenação e
   // "Super Mario World 2" acaba antes de "Super Mario World".
-  for (const [album, qtd] of [...porAlbum].sort((a, b) => a[0].localeCompare(b[0]))) {
-    console.log(`  ${String(qtd).padStart(4)}  ${album}`);
+  for (const [album, count] of [...byAlbum].sort((a, b) => a[0].localeCompare(b[0]))) {
+    console.log(`  ${String(count).padStart(4)}  ${album}`);
   }
 
-  console.log(`\ncatálogo atual: ${anteriores.length} faixa(s)`);
-  console.log(`  entram: ${novos.length}`);
-  console.log(`  saem:   ${sumidos.length}`);
-  for (const t of sumidos.slice(0, 10)) console.log(`    - ${t.filename}`);
-  if (sumidos.length > 10) console.log(`    ... e mais ${sumidos.length - 10}`);
+  console.log(`\ncatálogo atual: ${previous.length} faixa(s)`);
+  console.log(`  entram: ${added.length}`);
+  console.log(`  saem:   ${removed.length}`);
+  for (const t of removed.slice(0, 10)) console.log(`    - ${t.filename}`);
+  if (removed.length > 10) console.log(`    ... e mais ${removed.length - 10}`);
 
   if (DRY_RUN) {
     console.log('\n--dry-run: nada foi gravado.');

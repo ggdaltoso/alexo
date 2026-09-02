@@ -49,8 +49,8 @@ function agendarRebroadcast() {
 }
 
 async function onTagPresent({ uid }) {
-  const mapeamento = state.getTagMapping(uid);
-  if (!mapeamento) {
+  const mapping = state.getTagMapping(uid);
+  if (!mapping) {
     console.log(`[music] tag ${uid} sem álbum mapeado — ignorando`);
     return;
   }
@@ -60,23 +60,23 @@ async function onTagPresent({ uid }) {
   if (player.pausedUid === uid) {
     // Mesma tag que acabou de sair: retomar preserva a posição, que é o efeito
     // que faz a caixinha parecer ter memória.
-    console.log(`[music] tag ${uid} de volta — retomando ${mapeamento.album}`);
+    console.log(`[music] tag ${uid} de volta — retomando ${mapping.album}`);
     state.setPlayerState({ activeTagUid: uid, pausedUid: null });
     await musicPlayer.resume();
     return;
   }
 
-  const faixas = state.getTracksByAlbum(mapeamento.album);
-  if (!faixas.length) {
+  const tracks = state.getTracksByAlbum(mapping.album);
+  if (!tracks.length) {
     // Mapeamento apontando para álbum que não existe mais: acontece se a pasta
     // for renomeada depois do cadastro.
-    console.warn(`[music] álbum "${mapeamento.album}" (tag ${uid}) não tem faixas no catálogo`);
+    console.warn(`[music] álbum "${mapping.album}" (tag ${uid}) não tem faixas no catálogo`);
     return;
   }
 
-  console.log(`[music] tag ${uid} — tocando ${mapeamento.album} (${faixas.length} faixas)`);
-  state.setPlayerState({ activeTagUid: uid, pausedUid: null, album: mapeamento.album });
-  await musicPlayer.playAlbum(mapeamento.album, faixas);
+  console.log(`[music] tag ${uid} — tocando ${mapping.album} (${tracks.length} faixas)`);
+  state.setPlayerState({ activeTagUid: uid, pausedUid: null, album: mapping.album });
+  await musicPlayer.playAlbum(mapping.album, tracks);
 }
 
 async function onTagVanish({ uid }) {
@@ -178,9 +178,9 @@ module.exports = {
    * perceber.
    */
   play: (album, trackId) => {
-    const faixas = state.getTracksByAlbum(album);
-    const idx = trackId ? faixas.findIndex((t) => t.id === trackId) : 0;
-    return musicPlayer.playAlbum(album, faixas, idx < 0 ? 0 : idx);
+    const tracks = state.getTracksByAlbum(album);
+    const idx = trackId ? tracks.findIndex((t) => t.id === trackId) : 0;
+    return musicPlayer.playAlbum(album, tracks, idx < 0 ? 0 : idx);
   },
   pause: () => musicPlayer.pause(),
   resume: () => musicPlayer.resume(),

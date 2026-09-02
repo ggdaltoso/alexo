@@ -119,13 +119,13 @@ export function AppProvider({ children }: AppProviderProps) {
           break;
 
         case 'gallery_updated':
-          // Ignorado de propósito: a Galeria faz polling e não escuta o WS.
+          // Ignorado de propósito: a Gallery faz polling e não escuta o WS.
           break;
 
         case 'music_playback_state': {
           // `type` e `timestamp` são do envelope, não do estado do player.
-          const { type: _t, timestamp: _ts, ...estado } = event;
-          setMusicPlayback(estado);
+          const { type: _t, timestamp: _ts, ...playback } = event;
+          setMusicPlayback(playback);
           break;
         }
 

@@ -30,8 +30,8 @@ server.listen(PORT, () => {
 
 // Encerrar limpo: sem isso o leitor NFC fica com o barramento aberto e o
 // próximo processo herda um comando pendente.
-for (const sinal of ['SIGINT', 'SIGTERM']) {
-  process.on(sinal, () => {
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
     musicController.stop().finally(() => process.exit(0));
   });
 }

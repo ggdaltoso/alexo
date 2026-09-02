@@ -27,10 +27,10 @@ router.post('/import', (req, res) => {
   if (!tracks.length) {
     return res.status(400).json({ error: 'Nenhum .mp3 encontrado em uploads/music' });
   }
-  const { novos, sumidos } = musicCatalog.diff(state.getTracks(), tracks);
+  const { added, removed } = musicCatalog.diff(state.getTracks(), tracks);
   state.replaceTracks(tracks);
   wsServer.broadcast({ type: 'music_tracks_updated' });
-  res.json({ total: tracks.length, novos: novos.length, sumidos: sumidos.length });
+  res.json({ total: tracks.length, added: added.length, removed: removed.length });
 });
 
 router.get('/tags', (req, res) => {
@@ -66,7 +66,7 @@ router.get('/player/status', async (req, res) => {
   res.json(await musicController.getStatus());
 });
 
-const acoesDoPlayer = {
+const playerActions = {
   play: (body) => musicController.play(body.album, body.trackId),
   pause: () => musicController.pause(),
   resume: () => musicController.resume(),
@@ -79,11 +79,11 @@ const acoesDoPlayer = {
   stop: () => musicController.stopPlayback(),
 };
 
-router.post('/player/:acao', async (req, res) => {
-  const acao = acoesDoPlayer[req.params.acao];
-  if (!acao) return res.status(404).json({ error: `Ação desconhecida: ${req.params.acao}` });
+router.post('/player/:action', async (req, res) => {
+  const action = playerActions[req.params.action];
+  if (!action) return res.status(404).json({ error: `Ação desconhecida: ${req.params.action}` });
   try {
-    const status = await acao(req.body || {});
+    const status = await action(req.body || {});
     // status nulo = player indisponível (sem mpv). Não é erro do pedido.
     res.json(status || (await musicController.getStatus()));
   } catch (err) {

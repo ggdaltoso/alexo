@@ -1,35 +1,35 @@
 /* Base das páginas de admin: a paleta e o que vale para todas elas. */
 :root {
-  --fundo: #111;
-  --superficie: #1e1e1e;
-  --campo: #2a2a2a;
-  --borda: #333;
-  --borda-campo: #444;
-  --borda-fraca: #555;
-  --texto: #eee;
-  --texto-medio: #aaa;
-  --texto-fraco: #888;
-  --texto-apagado: #666;
-  --branco: #fff;
-  --acento: #3b82f6;
-  --acento-forte: #2563eb;
+  --bg: #111;
+  --surface: #1e1e1e;
+  --field: #2a2a2a;
+  --border: #333;
+  --border-field: #444;
+  --border-faint: #555;
+  --text: #eee;
+  --text-mid: #aaa;
+  --text-dim: #888;
+  --text-faint: #666;
+  --white: #fff;
+  --accent: #3b82f6;
+  --accent-strong: #2563eb;
   --link: #7dd3fc;
   --ok: #6ee7b7;
-  --erro: #f87171;
-  --aviso: #fbbf24;
-  --erro-fundo: #7f1d1d;
+  --error: #f87171;
+  --warning: #fbbf24;
+  --error-bg: #7f1d1d;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
   font-family: system-ui, sans-serif;
-  background: var(--fundo);
-  color: var(--texto);
+  background: var(--bg);
+  color: var(--text);
   margin: 0;
   padding: 2rem;
 }
 
 /* Margem negativa: encosta a linha de links no <h1>, que traz margem de baixo. */
-.nav { color: var(--texto-fraco); margin: -1rem 0 1.5rem; }
+.nav { color: var(--text-dim); margin: -1rem 0 1.5rem; }
 .nav a { color: var(--link); }

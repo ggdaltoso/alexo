@@ -21,16 +21,16 @@ const { SCRIPTS_DIR } = require('../config');
  * Falha aqui não derruba o upload: a foto original fica, grande, e o
  * resize-gallery.py em lote conserta depois. Perder a foto seria pior.
  */
-function reduzirImagem(caminho) {
+function shrinkImage(filePath) {
   return new Promise((resolve) => {
     const script = path.join(SCRIPTS_DIR, 'resize-gallery.py');
-    execFile('python3', [script, '--arquivo', caminho], { timeout: 60000 }, (err, _out, stderr) => {
+    execFile('python3', [script, '--arquivo', filePath], { timeout: 60000 }, (err, _out, stderr) => {
       if (err) {
-        console.warn(`[galeria] não consegui reduzir ${path.basename(caminho)}: ${stderr || err.message}`);
+        console.warn(`[gallery] não consegui reduzir ${path.basename(filePath)}: ${stderr || err.message}`);
       }
       resolve();
     });
   });
 }
 
-module.exports = { reduzirImagem };
+module.exports = { shrinkImage };

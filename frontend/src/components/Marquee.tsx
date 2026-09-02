@@ -17,44 +17,44 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 // Só anima se sobrar mais que isto, em pixels. Rolar dois pixels chama atenção
 // para nada e fica pior que o texto cortado.
-const MINIMO_PARA_ROLAR = 4;
+const MIN_TO_SCROLL = 4;
 
 interface Props {
-  texto: string;
+  text: string;
   className?: string;
 }
 
-export function Letreiro({ texto, className = '' }: Props) {
-  const caixa = useRef<HTMLDivElement | null>(null);
-  const [distancia, setDistancia] = useState(0);
+export function Marquee({ text, className = '' }: Props) {
+  const box = useRef<HTMLDivElement | null>(null);
+  const [distance, setDistance] = useState(0);
 
-  const medir = useCallback((el: HTMLDivElement | null) => {
-    caixa.current = el;
+  const measure = useCallback((el: HTMLDivElement | null) => {
+    box.current = el;
     if (!el) return;
     // Callback ref + ResizeObserver: o painel entra e sai da tela conforme a
     // música, então o nó não existe no primeiro render e um useEffect([])
     // mediria nulo -- e, com deps vazias, nunca mais rodaria.
-    const obs = new ResizeObserver(() => {
-      const sobra = el.scrollWidth - el.clientWidth;
-      setDistancia(sobra > MINIMO_PARA_ROLAR ? sobra : 0);
+    const observer = new ResizeObserver(() => {
+      const overflow = el.scrollWidth - el.clientWidth;
+      setDistance(overflow > MIN_TO_SCROLL ? overflow : 0);
     });
-    obs.observe(el);
+    observer.observe(el);
   }, []);
 
   useLayoutEffect(() => {
-    const el = caixa.current;
+    const el = box.current;
     if (!el) return;
-    const sobra = el.scrollWidth - el.clientWidth;
-    setDistancia(sobra > MINIMO_PARA_ROLAR ? sobra : 0);
-  }, [texto]);
+    const overflow = el.scrollWidth - el.clientWidth;
+    setDistance(overflow > MIN_TO_SCROLL ? overflow : 0);
+  }, [text]);
 
   return (
-    <div ref={medir} className={`overflow-hidden whitespace-nowrap ${className}`}>
+    <div ref={measure} className={`overflow-hidden whitespace-nowrap ${className}`}>
       <span
-        className={distancia ? 'alexo-letreiro' : undefined}
-        style={distancia ? ({ '--rolagem': `-${distancia}px` } as React.CSSProperties) : undefined}
+        className={distance ? 'alexo-letreiro' : undefined}
+        style={distance ? ({ '--rolagem': `-${distance}px` } as React.CSSProperties) : undefined}
       >
-        {texto}
+        {text}
       </span>
     </div>
   );

@@ -7,7 +7,7 @@
  *
  * Aqui é o mesmo comando, mas não dá para chamar o alias em si: alias só existe
  * em shell interativo, e o backend não tem shell nenhum no meio -- `execFile`
- * com argumentos em array, como no servicos.js. Então o que é reusado é o
+ * com argumentos em array, como no services.js. Então o que é reusado é o
  * comando, não o atalho; se o alias mudar lá, esta constante muda junto.
  *
  * `DISPLAY=:0` é a metade do alias que importa aqui: o backend sobe pelo
@@ -46,7 +46,7 @@ const TIMEOUT = 15000;
  * porque brigam com o Chromium pela mesma CPU. Quem chega no meio de uma
  * captura recebe a mesma imagem, que é a resposta certa: é o mesmo instante.
  */
-let emCurso = null;
+let inFlight = null;
 
 /*
  * A última captura fica em memória.
@@ -60,11 +60,11 @@ let emCurso = null;
  * onde o Chromium roda com 48 MB de heap, isso importa o suficiente para valer
  * a frase, e pouco o suficiente para não valer mais que isso.
  */
-let ultima = null;
+let last = null;
 
 /** A última captura, ou null se ainda não houve nenhuma desde que o backend subiu. */
-function ultimaCaptura() {
-  return ultima;
+function lastCapture() {
+  return last;
 }
 
 /**
@@ -73,10 +73,10 @@ function ultimaCaptura() {
  * A hora vai junto porque é ela, e não a hora de gravar, que descreve o que está
  * na imagem. Lança se o X não responder.
  */
-function capturar() {
-  if (emCurso) return emCurso;
+function capture() {
+  if (inFlight) return inFlight;
 
-  emCurso = new Promise((resolve, reject) => {
+  inFlight = new Promise((resolve, reject) => {
     execFile(
       'scrot',
       [ARQUIVO],
@@ -95,8 +95,8 @@ function capturar() {
         }
         fs.readFile(ARQUIVO, (erroLeitura, png) => {
           if (erroLeitura) return reject(erroLeitura);
-          ultima = { png, em: new Date().toISOString() };
-          resolve(ultima);
+          last = { png, at: new Date().toISOString() };
+          resolve(last);
         });
       },
     );
@@ -104,10 +104,10 @@ function capturar() {
 
   // Solta a trava dos dois lados: se uma captura falha e a trava fica presa, o
   // botão nunca mais funciona até o backend reiniciar.
-  const soltar = () => { emCurso = null; };
-  emCurso.then(soltar, soltar);
+  const release = () => { inFlight = null; };
+  inFlight.then(release, release);
 
-  return emCurso;
+  return inFlight;
 }
 
-module.exports = { capturar, ultimaCaptura, ARQUIVO };
+module.exports = { capture, lastCapture, ARQUIVO };

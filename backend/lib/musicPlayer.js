@@ -176,44 +176,44 @@ async function waitForSocket(socketPath, timeoutMs, desistir) {
  * voltar a tocar sozinho seria surpresa desagradável -- som saindo do nada, sem
  * ninguém ter encostado tag. O estado é zerado e o gesto vale de novo.
  */
-async function reconectar() {
-  if (reconectando || encerrando) return;
-  reconectando = true;
+async function reconnect() {
+  if (reconnecting || shuttingDown) return;
+  reconnecting = true;
 
-  let tentativa = 0;
-  while (!encerrando) {
-    tentativa += 1;
+  let attempt = 0;
+  while (!shuttingDown) {
+    attempt += 1;
     try {
       const socket = await connectOnce(SOCKET_PATH);
       ipc = new MpvIpc(socket);
       wireEvents();
-      atual = { album: null, tracks: [], volume: atual.volume };
+      current = { album: null, tracks: [], volume: current.volume };
       // mpv novo: o device dele está aberto, seja qual for o estado do anterior.
-      cancelarLiberacao();
-      audioLiberado = false;
-      dispositivoDeAudio = null;
+      cancelAudioRelease();
+      audioReleased = false;
+      audioDevice = null;
       available = true;
-      console.log(`[music] reconectado ao mpv após ${tentativa} tentativa(s)`);
+      console.log(`[music] reconectado ao mpv após ${attempt} tentativa(s)`);
       // Solta a trava ANTES dos awaits abaixo. Se a conexão recém-aberta morrer
       // durante eles, o handler de 'close' chama reconectar() de novo -- e com
       // a trava ainda presa ele retornaria sem fazer nada, deixando o player
       // morto até alguém reiniciar o backend. Acontece de verdade num
       // `systemctl restart alexo-mpv`: o socket do mpv que está morrendo ainda
       // aceita a conexão e só depois dá EPIPE. Visto em 27/08/2026.
-      reconectando = false;
-      await ipc.command('set_property', 'volume', atual.volume).catch(() => {});
+      reconnecting = false;
+      await ipc.command('set_property', 'volume', current.volume).catch(() => {});
       emitStatus().catch(() => {});
       return;
     } catch (err) {
       // Só a primeira e depois de 10 em 10: o mpv leva ~11s para subir e o
       // RestartSec soma mais alguns, então um punhado de falhas é o normal.
-      if (tentativa === 1 || tentativa % 10 === 0) {
-        console.warn(`[music] mpv fora do ar, tentando reconectar (${tentativa})`);
+      if (attempt === 1 || attempt % 10 === 0) {
+        console.warn(`[music] mpv fora do ar, tentando reconectar (${attempt})`);
       }
       await sleep(3000);
     }
   }
-  reconectando = false;
+  reconnecting = false;
 }
 
 const player = new EventEmitter();
@@ -221,19 +221,19 @@ const player = new EventEmitter();
 let ipc = null;
 let child = null;
 let available = false;
-let reconectando = false;
-let encerrando = false;
+let reconnecting = false;
+let shuttingDown = false;
 
 // Soltamos o áudio depois de LIBERAR_AUDIO_MS parado. `dispositivoDeAudio`
 // guarda para onde devolver -- lido do próprio mpv, e não da constante, porque
 // em produção quem escolhe o device é a linha de comando do alexo-mpv.service.
-let audioLiberado = false;
-let dispositivoDeAudio = null;
-let timerLiberarAudio = null;
+let audioReleased = false;
+let audioDevice = null;
+let audioReleaseTimer = null;
 
 // Espelho local do que está tocando. O mpv sabe da playlist, mas não sabe o que
 // é "álbum" nem qual id o catálogo deu para cada faixa -- isso é nosso.
-let atual = {
+let current = {
   album: null,
   tracks: [],
   volume: DEFAULT_VOLUME,
@@ -246,11 +246,11 @@ let atual = {
 // positionAt = agora. O cliente precisa saber HÁ QUANTO TEMPO parou (é o que
 // decide se o painel de música ainda aparece), e para isso o carimbo tem de ser
 // estável entre consultas.
-let ultimoIsPlaying = null;
-let mudouEstadoEm = Date.now();
+let lastIsPlaying = null;
+let stateChangedAt = Date.now();
 
 function trackAt(index) {
-  return atual.tracks[index] || null;
+  return current.tracks[index] || null;
 }
 
 async function buildStatus() {
@@ -275,29 +275,29 @@ async function buildStatus() {
   ]);
 
   const idx = typeof indice === 'number' && indice >= 0 ? indice : 0;
-  const faixa = trackAt(idx);
-  const tocando = pausado === false && faixa !== null;
+  const track = trackAt(idx);
+  const playing = pausado === false && track !== null;
 
   // Só carimba quando o valor muda de verdade: buildStatus roda a cada polling,
   // e carimbar sempre destruiria a informação que este campo carrega.
-  if (ultimoIsPlaying !== tocando) {
-    ultimoIsPlaying = tocando;
-    mudouEstadoEm = Date.now();
+  if (lastIsPlaying !== playing) {
+    lastIsPlaying = playing;
+    stateChangedAt = Date.now();
   }
 
   return {
-    album: atual.album,
-    trackId: faixa ? faixa.id : null,
+    album: current.album,
+    trackId: track ? track.id : null,
     trackIndex: idx,
-    trackCount: atual.tracks.length,
-    title: faixa ? faixa.title : null,
-    filename: faixa ? faixa.filename : null,
-    isPlaying: tocando,
+    trackCount: current.tracks.length,
+    title: track ? track.title : null,
+    filename: track ? track.filename : null,
+    isPlaying: playing,
     position: typeof posicao === 'number' ? posicao : 0,
     positionAt: Date.now(),
-    stateChangedAt: mudouEstadoEm,
+    stateChangedAt: stateChangedAt,
     duration: typeof duracao === 'number' ? duracao : null,
-    volume: typeof volume === 'number' ? volume : atual.volume,
+    volume: typeof volume === 'number' ? volume : current.volume,
   };
 }
 
@@ -315,7 +315,7 @@ function wireEvents() {
       // Rede de segurança: pausa e fim de playlist também chegam por caminhos
       // que não passaram por pause()/stop() -- o álbum acabando sozinho é o
       // caso real. Sem isto, o device ficaria aberto até alguém mexer.
-      if (msg.event === 'pause' || msg.event === 'idle') agendarLiberacao();
+      if (msg.event === 'pause' || msg.event === 'idle') scheduleAudioRelease();
       emitStatus().catch(() => {});
     }
   });
@@ -323,9 +323,9 @@ function wireEvents() {
   ipc.on('close', () => {
     available = false;
     ipc = null;
-    if (encerrando) return;
+    if (shuttingDown) return;
     console.warn('[music] conexão com o mpv caiu');
-    reconectar();
+    reconnect();
   });
 
   ipc.on('error', (err) => {
@@ -341,7 +341,7 @@ function wireEvents() {
  * reinício. Sem isto a próxima música tocaria muda -- sem erro, sem log, só
  * silêncio.
  */
-async function normalizarAudio() {
+async function normalizeAudio() {
   const device = await ipc.command('get_property', 'audio-device').catch(() => null);
   if (device !== 'null') return;
   console.warn('[music] mpv estava com o áudio solto — devolvendo o dispositivo');
@@ -366,8 +366,8 @@ async function init() {
       wireEvents();
       available = true;
       console.log(`[music] reaproveitando o mpv já ativo em ${SOCKET_PATH}`);
-      await ipc.command('set_property', 'volume', atual.volume).catch(() => {});
-      await normalizarAudio();
+      await ipc.command('set_property', 'volume', current.volume).catch(() => {});
+      await normalizeAudio();
       return true;
     } catch (err) {
       // Nenhum mpv atendendo ainda.
@@ -386,8 +386,8 @@ async function init() {
         wireEvents();
         available = true;
         console.log(`[music] conectado ao mpv externo em ${SOCKET_PATH}`);
-        await ipc.command('set_property', 'volume', atual.volume).catch(() => {});
-        await normalizarAudio();
+        await ipc.command('set_property', 'volume', current.volume).catch(() => {});
+        await normalizeAudio();
         return true;
       }
 
@@ -408,23 +408,23 @@ async function init() {
         '--idle=yes',
         '--no-video',
         `--audio-device=${AUDIO_DEVICE}`,
-        `--volume=${atual.volume}`,
+        `--volume=${current.volume}`,
         `--input-ipc-server=${SOCKET_PATH}`,
       ],
       { detached: true, stdio: 'ignore' }
     );
     child.unref();
 
-    let falhouAoSubir = false;
+    let failedToStart = false;
     child.on('error', (err) => {
-      falhouAoSubir = true;
+      failedToStart = true;
       console.warn(`[music] não consegui subir o mpv: ${err.message}`);
       available = false;
     });
 
-    const socket = await waitForSocket(SOCKET_PATH, SOCKET_TIMEOUT_MS, () => falhouAoSubir);
+    const socket = await waitForSocket(SOCKET_PATH, SOCKET_TIMEOUT_MS, () => failedToStart);
     if (!socket) {
-      if (!falhouAoSubir) {
+      if (!failedToStart) {
         console.warn(`[music] o mpv não abriu ${SOCKET_PATH} em ${SOCKET_TIMEOUT_MS / 1000}s`);
       }
       return false;
@@ -453,39 +453,39 @@ async function init() {
 async function playAlbum(album, tracks, startIndex = 0) {
   if (!available || !tracks || !tracks.length) return null;
 
-  await reocuparAudio();
-  atual = { album, tracks: tracks.slice(), volume: atual.volume };
+  await reclaimAudio();
+  current = { album, tracks: tracks.slice(), volume: current.volume };
 
-  const caminho = (t) => path.join(MUSIC_DIR, t.filename);
+  const filePath = (t) => path.join(MUSIC_DIR, t.filename);
 
   // A primeira substitui a playlist; as demais entram na fila. Daí em diante o
   // avanço entre faixas é do mpv, não nosso.
-  await ipc.command('loadfile', caminho(tracks[0]), 'replace');
-  for (const faixa of tracks.slice(1)) {
-    await ipc.command('loadfile', caminho(faixa), 'append');
+  await ipc.command('loadfile', filePath(tracks[0]), 'replace');
+  for (const track of tracks.slice(1)) {
+    await ipc.command('loadfile', filePath(track), 'append');
   }
 
-  const alvo = Math.max(0, Math.min(tracks.length - 1, Number(startIndex) || 0));
-  if (alvo > 0) {
-    await ipc.command('set_property', 'playlist-pos', alvo);
+  const target = Math.max(0, Math.min(tracks.length - 1, Number(startIndex) || 0));
+  if (target > 0) {
+    await ipc.command('set_property', 'playlist-pos', target);
   }
 
   await ipc.command('set_property', 'pause', false);
   return emitStatus();
 }
 
-function cancelarLiberacao() {
-  if (timerLiberarAudio) clearTimeout(timerLiberarAudio);
-  timerLiberarAudio = null;
+function cancelAudioRelease() {
+  if (audioReleaseTimer) clearTimeout(audioReleaseTimer);
+  audioReleaseTimer = null;
 }
 
-function agendarLiberacao() {
-  cancelarLiberacao();
-  timerLiberarAudio = setTimeout(() => {
-    liberarAudio().catch((err) => console.warn(`[music] não consegui liberar o áudio: ${err.message}`));
+function scheduleAudioRelease() {
+  cancelAudioRelease();
+  audioReleaseTimer = setTimeout(() => {
+    releaseAudio().catch((err) => console.warn(`[music] não consegui liberar o áudio: ${err.message}`));
   }, LIBERAR_AUDIO_MS);
   // Não segurar o processo vivo só por causa deste timer.
-  if (timerLiberarAudio.unref) timerLiberarAudio.unref();
+  if (audioReleaseTimer.unref) audioReleaseTimer.unref();
 }
 
 /**
@@ -499,43 +499,43 @@ function agendarLiberacao() {
  * faixa (86 no álbum de teste) bem no gesto de encostar a tag de volta, que é
  * justamente o que precisa parecer instantâneo.
  */
-async function liberarAudio() {
-  timerLiberarAudio = null;
-  if (!available || !ipc || audioLiberado) return;
+async function releaseAudio() {
+  audioReleaseTimer = null;
+  if (!available || !ipc || audioReleased) return;
 
   // core-idle cobre pausado E fim de playlist. Se voltou a tocar enquanto o
   // timer corria, não há nada a soltar.
-  const ocioso = await ipc.command('get_property', 'core-idle').catch(() => null);
-  if (ocioso !== true) return;
+  const idle = await ipc.command('get_property', 'core-idle').catch(() => null);
+  if (idle !== true) return;
 
-  dispositivoDeAudio = await ipc.command('get_property', 'audio-device').catch(() => null);
+  audioDevice = await ipc.command('get_property', 'audio-device').catch(() => null);
   await ipc.command('set_property', 'audio-device', 'null');
-  audioLiberado = true;
+  audioReleased = true;
   console.log(`[music] áudio liberado após ${Math.round(LIBERAR_AUDIO_MS / 1000)}s parado`);
 }
 
 /** Devolve o dispositivo. Chamado por tudo que precisa sair pelo alto-falante. */
-async function reocuparAudio() {
-  cancelarLiberacao();
-  if (!audioLiberado) return;
-  audioLiberado = false;
+async function reclaimAudio() {
+  cancelAudioRelease();
+  if (!audioReleased) return;
+  audioReleased = false;
   await ipc
-    .command('set_property', 'audio-device', dispositivoDeAudio || AUDIO_DEVICE)
+    .command('set_property', 'audio-device', audioDevice || AUDIO_DEVICE)
     .catch(() => {});
-  dispositivoDeAudio = null;
+  audioDevice = null;
   console.log('[music] áudio reocupado');
 }
 
 async function pause() {
   if (!available) return null;
   await ipc.command('set_property', 'pause', true);
-  agendarLiberacao();
+  scheduleAudioRelease();
   return emitStatus();
 }
 
 async function resume() {
   if (!available) return null;
-  await reocuparAudio();
+  await reclaimAudio();
   await ipc.command('set_property', 'pause', false);
   return emitStatus();
 }
@@ -543,7 +543,7 @@ async function resume() {
 /** Volta ao início da faixa atual. */
 async function restart() {
   if (!available) return null;
-  await reocuparAudio();
+  await reclaimAudio();
   await ipc.command('seek', 0, 'absolute');
   await ipc.command('set_property', 'pause', false);
   return emitStatus();
@@ -551,14 +551,14 @@ async function restart() {
 
 async function next() {
   if (!available) return null;
-  await reocuparAudio();
+  await reclaimAudio();
   await ipc.command('playlist-next', 'weak').catch(() => {});
   return emitStatus();
 }
 
 async function previous() {
   if (!available) return null;
-  await reocuparAudio();
+  await reclaimAudio();
   await ipc.command('playlist-prev', 'weak').catch(() => {});
   return emitStatus();
 }
@@ -567,7 +567,7 @@ async function setVolume(value) {
   if (!available) return null;
   const v = Math.max(0, Math.min(100, Number(value)));
   if (Number.isNaN(v)) return null;
-  atual.volume = v;
+  current.volume = v;
   await ipc.command('set_property', 'volume', v);
   return emitStatus();
 }
@@ -576,8 +576,8 @@ async function setVolume(value) {
 async function stop() {
   if (!available) return null;
   await ipc.command('stop').catch(() => {});
-  atual = { album: null, tracks: [], volume: atual.volume };
-  agendarLiberacao();
+  current = { album: null, tracks: [], volume: current.volume };
+  scheduleAudioRelease();
   return emitStatus();
 }
 
@@ -586,8 +586,8 @@ async function getStatus() {
     return {
       album: null, trackId: null, trackIndex: 0, trackCount: 0,
       title: null, filename: null, isPlaying: false,
-      position: 0, positionAt: Date.now(), stateChangedAt: mudouEstadoEm,
-      duration: null, volume: atual.volume,
+      position: 0, positionAt: Date.now(), stateChangedAt: stateChangedAt,
+      duration: null, volume: current.volume,
     };
   }
   return buildStatus();
@@ -598,8 +598,8 @@ async function getStatus() {
  * init(), o que evita os ~11s de subida a cada reinício do backend.
  */
 function close() {
-  encerrando = true;
-  cancelarLiberacao();
+  shuttingDown = true;
+  cancelAudioRelease();
   if (ipc) {
     ipc.close();
     ipc = null;

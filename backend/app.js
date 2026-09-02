@@ -1,8 +1,10 @@
 const path = require('path');
 const express = require('express');
 
-const { NODE_ENV, ehProducao, UPLOADS_DIR, FRONTEND_DIST, PUBLIC_ADMIN_DIR } = require('./config');
-const rotas = require('./routes');
+const {
+  NODE_ENV, isProduction, UPLOADS_DIR, FRONTEND_DIST, PUBLIC_ADMIN_DIR, HTMX_DIR,
+} = require('./config');
+const routes = require('./routes');
 
 const app = express();
 
@@ -26,11 +28,16 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 // para não haver como um arquivo do disco sombrear uma rota de página.
 app.use('/admin/assets', express.static(PUBLIC_ADMIN_DIR));
 
-app.use(rotas);
+// O htmx sai do node_modules em vez de ser copiado para public/: assim ele é
+// uma dependência como as outras -- aparece no package.json, atualiza por npm e
+// não entra no diff do repo. O deploy já roda `npm install --production` no Pi.
+app.use('/admin/assets/vendor', express.static(HTMX_DIR));
+
+app.use(routes);
 
 // O frontend é servido pelo próprio backend em produção. O curinga vem depois
 // das rotas para não engolir /api nem /admin.
-if (ehProducao) {
+if (isProduction) {
   app.use(express.static(FRONTEND_DIST));
   app.get('*', (req, res) => {
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));

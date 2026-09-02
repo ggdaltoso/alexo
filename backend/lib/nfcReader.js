@@ -325,14 +325,14 @@ async function init() {
     await device.abort();
     await sleep(50);
 
-    const handshake = async (data, responseLen, expected, nome) => {
-      for (let tentativa = 1; tentativa <= HANDSHAKE_ATTEMPTS; tentativa += 1) {
+    const handshake = async (data, responseLen, expected, name) => {
+      for (let attempt = 1; attempt <= HANDSHAKE_ATTEMPTS; attempt += 1) {
         const { payload, error } = await device.sendCommand(data, responseLen, CMD_TIMEOUT_MS);
         if (!error && payload && payload.length && payload[0] === expected) return payload;
         await device.abort();
         await sleep(50);
       }
-      throw new Error(`${nome} não respondeu em ${HANDSHAKE_ATTEMPTS} tentativas`);
+      throw new Error(`${name} não respondeu em ${HANDSHAKE_ATTEMPTS} tentativas`);
     };
 
     const fw = await handshake([CMD_GET_FIRMWARE_VERSION], 12, 0x03, 'GetFirmwareVersion');

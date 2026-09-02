@@ -7,7 +7,7 @@ const { GALERIA_DIR } = require('../../config');
 const wsServer = require('../../lib/ws');
 const state = require('../../lib/state');
 const { randomUUID } = require('../../lib/ids');
-const { reduzirImagem } = require('../../lib/imagem');
+const { shrinkImage } = require('../../lib/image');
 
 // uploads/ e data/ são deliberadamente excluídos do deploy (é conteúdo que vive
 // no Pi, não no repo), então nada os cria por lá -- num Pi novo, ou se alguém
@@ -43,7 +43,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
 
   // Antes de registrar no catálogo: se a redução demorar, é melhor o upload
   // parecer lento do que a galeria exibir a foto gigante por alguns segundos.
-  await reduzirImagem(req.file.path);
+  await shrinkImage(req.file.path);
 
   const item = {
     id: path.basename(req.file.filename, path.extname(req.file.filename)),

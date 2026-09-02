@@ -25,28 +25,28 @@ const ACOES = ['start', 'stop', 'restart'];
  */
 const SERVICOS = {
   alexo: {
-    unidade: 'alexo.service',
-    rotulo: 'Backend',
-    descricao: 'Serve a API e o frontend',
-    podeParar: false,
+    unit: 'alexo.service',
+    label: 'Backend',
+    description: 'Serve a API e o frontend',
+    canStop: false,
   },
   'alexo-display': {
-    unidade: 'alexo-display.service',
-    rotulo: 'Display (kiosk)',
-    descricao: 'O Chromium em tela cheia',
-    podeParar: true,
+    unit: 'alexo-display.service',
+    label: 'Display (kiosk)',
+    description: 'O Chromium em tela cheia',
+    canStop: true,
   },
   'alexo-mpv': {
-    unidade: 'alexo-mpv.service',
-    rotulo: 'Player (mpv)',
-    descricao: 'Processo de áudio; parar corta a música',
-    podeParar: true,
+    unit: 'alexo-mpv.service',
+    label: 'Player (mpv)',
+    description: 'Processo de áudio; parar corta a música',
+    canStop: true,
   },
   'wifi-monitor': {
-    unidade: 'wifi-monitor.service',
-    rotulo: 'Monitor de Wi-Fi',
-    descricao: 'Amostra SSID e sinal no journald',
-    podeParar: true,
+    unit: 'wifi-monitor.service',
+    label: 'Monitor de Wi-Fi',
+    description: 'Amostra SSID e sinal no journald',
+    canStop: true,
   },
 };
 
@@ -62,44 +62,44 @@ function systemctl(args) {
 }
 
 /** Estado de um serviço. Nunca lança: um serviço ilegível vira 'desconhecido'. */
-async function statusDe(chave) {
-  const servico = SERVICOS[chave];
+async function statusDe(key) {
+  const service = SERVICOS[key];
   try {
-    const saida = await systemctl([
+    const output = await systemctl([
       'show',
-      servico.unidade,
+      service.unit,
       '-p', 'ActiveState',
       '-p', 'SubState',
       '-p', 'ActiveEnterTimestamp',
       '--value',
     ]);
-    const [estado, sub, desde] = saida.split('\n');
+    const [state, sub, since] = output.split('\n');
     return {
-      chave,
-      rotulo: servico.rotulo,
-      descricao: servico.descricao,
-      podeParar: servico.podeParar,
-      estado: estado || 'desconhecido',
+      key,
+      label: service.label,
+      description: service.description,
+      canStop: service.canStop,
+      state: state || 'desconhecido',
       sub: sub || '',
       // O Zero W não tem RTC e fica sem NTP quando cai da rede, então esse
       // timestamp às vezes vem de uma data absurda. Vai cru; quem exibe avisa.
-      desde: desde || '',
+      since: since || '',
     };
   } catch (err) {
     return {
-      chave,
-      rotulo: servico.rotulo,
-      descricao: servico.descricao,
-      podeParar: servico.podeParar,
-      estado: 'desconhecido',
+      key,
+      label: service.label,
+      description: service.description,
+      canStop: service.canStop,
+      state: 'desconhecido',
       sub: '',
-      desde: '',
-      erro: err.message,
+      since: '',
+      error: err.message,
     };
   }
 }
 
-function listar() {
+function list() {
   return Promise.all(Object.keys(SERVICOS).map(statusDe));
 }
 
@@ -108,18 +108,18 @@ function listar() {
  * o próprio backend -- nesse caso quem chama precisa responder ANTES, porque o
  * systemd manda SIGTERM neste processo e a resposta HTTP nunca sairia.
  */
-function executar(chave, acao) {
-  const servico = SERVICOS[chave];
-  if (!servico) throw new Error(`Serviço desconhecido: ${chave}`);
-  if (ACOES.indexOf(acao) === -1) throw new Error(`Ação desconhecida: ${acao}`);
-  if (acao === 'stop' && !servico.podeParar) {
-    throw new Error(`${servico.rotulo} não pode ser parado pelo admin, só reiniciado`);
+function prepare(key, action) {
+  const service = SERVICOS[key];
+  if (!service) throw new Error(`Serviço desconhecido: ${key}`);
+  if (ACOES.indexOf(action) === -1) throw new Error(`Ação desconhecida: ${action}`);
+  if (action === 'stop' && !service.canStop) {
+    throw new Error(`${service.label} não pode ser parado pelo admin, só reiniciado`);
   }
 
-  const suicida = chave === 'alexo';
-  const rodar = () => systemctl([acao, servico.unidade]);
+  const selfKilling = key === 'alexo';
+  const run = () => systemctl([action, service.unit]);
 
-  return { suicida, rodar };
+  return { selfKilling, run };
 }
 
 /*
@@ -135,23 +135,23 @@ function executar(chave, acao) {
  */
 const SISTEMA = {
   reboot: {
-    rotulo: 'Reiniciar o Pi',
-    argumentos: ['reboot'],
-    volta: true,
+    label: 'Reiniciar o Pi',
+    args: ['reboot'],
+    comesBack: true,
   },
   poweroff: {
-    rotulo: 'Desligar o Pi',
-    argumentos: ['poweroff'],
-    volta: false,
+    label: 'Desligar o Pi',
+    args: ['poweroff'],
+    comesBack: false,
   },
 };
 
-function sistema(acao) {
-  const alvo = SISTEMA[acao];
-  if (!alvo) throw new Error(`Ação de sistema desconhecida: ${acao}`);
+function system(action) {
+  const target = SISTEMA[action];
+  if (!target) throw new Error(`Ação de sistema desconhecida: ${action}`);
   // Sempre "suicida": a máquina inteira cai, então a resposta HTTP tem de sair
-  // antes. Ver o comentário da rota em routes/api/sistema.js.
-  return { rotulo: alvo.rotulo, volta: alvo.volta, rodar: () => systemctl(alvo.argumentos) };
+  // antes. Ver o comentário da rota em routes/api/system.js.
+  return { label: target.label, comesBack: target.comesBack, run: () => systemctl(target.args) };
 }
 
-module.exports = { SERVICOS, ACOES, SISTEMA, listar, statusDe, executar, sistema };
+module.exports = { SERVICOS, ACOES, SISTEMA, list, statusDe, prepare, system };
