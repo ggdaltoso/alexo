@@ -2,7 +2,7 @@ const layout = require('./layout');
 
 module.exports = function galleryPage({ apiBase, images }) {
   const imageCards = images.length === 0
-    ? '<p class="vazio">Nenhuma imagem cadastrada.</p>'
+    ? '<p class="empty">Nenhuma imagem cadastrada.</p>'
     : [...images].sort((a, b) => a.order - b.order).map((img, i, arr) => `
       <div class="card" data-id="${img.id}" data-order="${img.order}">
         <span class="order">#${img.order}</span>
@@ -16,7 +16,7 @@ module.exports = function galleryPage({ apiBase, images }) {
 
   return layout({
     title: 'Galeria — Admin',
-    page: 'galeria',
+    page: 'gallery',
     apiBase,
     body: `
   <h1>Galeria — Gerenciar Imagens</h1>

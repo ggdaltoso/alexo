@@ -1,7 +1,7 @@
 const API = window.ADMIN_API;
 
 function notify(texto) {
-  const el = document.getElementById('aviso');
+  const el = document.getElementById('notice');
   el.textContent = texto;
   el.classList.add('on');
   clearTimeout(el._t);
@@ -14,7 +14,7 @@ function notify(texto) {
  * todo lugar. Enter também salva, para quem não quer clicar fora.
  */
 document.addEventListener('change', async (ev) => {
-  const field = ev.target.closest('.nota-in');
+  const field = ev.target.closest('.note-input');
   if (!field) return;
 
   const id = field.closest('.card').dataset.id;
@@ -32,7 +32,7 @@ document.addEventListener('change', async (ev) => {
 });
 
 document.addEventListener('keydown', (ev) => {
-  if (ev.key === 'Enter' && ev.target.closest('.nota-in')) ev.target.blur();
+  if (ev.key === 'Enter' && ev.target.closest('.note-input')) ev.target.blur();
 });
 
 document.addEventListener('click', async (ev) => {

@@ -1,55 +1,55 @@
 h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
-.sub { color: var(--texto-fraco); font-size: .9rem; margin: 0 0 2rem; }
-h2 { font-size: .8rem; margin: 2rem 0 .75rem; color: var(--texto-fraco); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.subtitle { color: var(--text-dim); font-size: .9rem; margin: 0 0 2rem; }
+h2 { font-size: .8rem; margin: 2rem 0 .75rem; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1rem; }
-.card { background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; padding: 1.25rem; text-decoration: none; color: inherit; display: block; }
-a.card:hover { border-color: var(--acento); }
-.num { font-size: 2rem; font-weight: 700; line-height: 1; }
-.rot { color: var(--texto-fraco); font-size: .85rem; margin-top: .35rem; }
-.linha { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: .5rem 0; border-bottom: 1px solid var(--campo); font-size: .9rem; }
-.linha:last-child { border-bottom: none; }
-.linha .k { color: var(--texto-fraco); }
-.v { font-family: ui-monospace, monospace; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; text-decoration: none; color: inherit; display: block; }
+a.card:hover { border-color: var(--accent); }
+.number { font-size: 2rem; font-weight: 700; line-height: 1; }
+.caption { color: var(--text-dim); font-size: .85rem; margin-top: .35rem; }
+.row { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: .5rem 0; border-bottom: 1px solid var(--field); font-size: .9rem; }
+.row:last-child { border-bottom: none; }
+.row .key-cell { color: var(--text-dim); }
+.value-cell { font-family: ui-monospace, monospace; }
 .ok { color: var(--ok); }
 /* A linha que o fragmento devolve quando a ação é recusada. */
-.k.erro { color: var(--erro); }
-.off { color: var(--erro); }
+.key-cell.error { color: var(--error); }
+.off { color: var(--error); }
 .warn { background: #422006; border-color: #854d0e; }
-.warn .rot { color: var(--aviso); }
-.acoes { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .5rem; }
-.acoes a { padding: .6rem 1.1rem; background: var(--acento); color: var(--branco); border-radius: 6px; text-decoration: none; font-size: .9rem; }
-.acoes a:hover { background: var(--acento-forte); }
-.linha small { color: var(--texto-apagado); font-size: .75rem; font-weight: 400; }
+.warn .caption { color: var(--warning); }
+.actions { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: .5rem; }
+.actions a { padding: .6rem 1.1rem; background: var(--accent); color: var(--white); border-radius: 6px; text-decoration: none; font-size: .9rem; }
+.actions a:hover { background: var(--accent-strong); }
+.row small { color: var(--text-faint); font-size: .75rem; font-weight: 400; }
 /* Indicador de status ao lado do nome. O estado por extenso fica no title:
    o ponto nao distingue "inactive" de "failed", e essa diferenca importa. */
-.pt { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; margin-right: .5rem; vertical-align: middle; }
-.pt-ok { background: var(--ok); }
-.pt-erro { background: var(--erro); }
-.pt-off { background: var(--borda-fraca); }
-.pt-meio { background: var(--aviso); }
+.dot { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; margin-right: .5rem; vertical-align: middle; }
+.dot-ok { background: var(--ok); }
+.dot-error { background: var(--error); }
+.dot-off { background: var(--border-faint); }
+.dot-mid { background: var(--warning); }
 /* Alinha a descricao sob o rotulo, e nao sob o ponto (0,5rem + 0,5rem). */
-.linha .k small { display: inline-block; padding-left: 1rem; }
-.btns { display: flex; gap: .4rem; flex-shrink: 0; }
-.btns button { padding: .35rem .7rem; background: var(--campo); color: #ddd; border: 1px solid var(--borda-campo); border-radius: 5px; font-size: .8rem; cursor: pointer; font-family: inherit; }
-.btns button:hover:not(:disabled) { border-color: var(--acento); color: var(--branco); }
-.btns button[data-a="stop"]:hover:not(:disabled) { border-color: var(--erro); color: var(--erro); }
-.btns button:disabled { opacity: .4; cursor: default; }
-.nota { color: var(--texto-apagado); font-size: .8rem; line-height: 1.5; margin: .75rem 0 0; max-width: 46rem; }
-.nota code { font-family: ui-monospace, monospace; color: var(--texto-fraco); }
+.row .key-cell small { display: inline-block; padding-left: 1rem; }
+.buttons { display: flex; gap: .4rem; flex-shrink: 0; }
+.buttons button { padding: .35rem .7rem; background: var(--field); color: #ddd; border: 1px solid var(--border-field); border-radius: 5px; font-size: .8rem; cursor: pointer; font-family: inherit; }
+.buttons button:hover:not(:disabled) { border-color: var(--accent); color: var(--white); }
+.buttons button[data-a="stop"]:hover:not(:disabled) { border-color: var(--error); color: var(--error); }
+.buttons button:disabled { opacity: .4; cursor: default; }
+.note { color: var(--text-faint); font-size: .8rem; line-height: 1.5; margin: .75rem 0 0; max-width: 46rem; }
+.note code { font-family: ui-monospace, monospace; color: var(--text-dim); }
 /* O print só aparece depois do primeiro clique; nascer vazio deixaria um
    buraco no card. Largura fixa em 480 (o tamanho real da tela) e pixelated:
    a UI do Alexo é pixelada de propósito, e deixar o navegador suavizar na
    escala mostraria uma tela que não é a que está lá. */
 #print { display: none; padding-top: 1rem; }
-#print.visivel { display: block; }
-#print img { display: block; width: 480px; max-width: 100%; image-rendering: pixelated; border: 1px solid var(--borda); border-radius: 4px; }
-#print a { display: inline-block; margin-top: .6rem; color: var(--acento); font-size: .85rem; }
-#guardar { display: none; }
-#guardar.visivel { display: flex; }
-#guardar .k { flex: 1; }
-#nota { width: 100%; max-width: 28rem; padding: .4rem .6rem; background: var(--fundo); color: var(--texto); border: 1px solid var(--borda-campo); border-radius: 5px; font-family: inherit; font-size: .85rem; }
-#nota:focus { outline: none; border-color: var(--acento); }
+#print.visible { display: block; }
+#print img { display: block; width: 480px; max-width: 100%; image-rendering: pixelated; border: 1px solid var(--border); border-radius: 4px; }
+#print a { display: inline-block; margin-top: .6rem; color: var(--accent); font-size: .85rem; }
+#saveRow { display: none; }
+#saveRow.visible { display: flex; }
+#saveRow .key-cell { flex: 1; }
+#note { width: 100%; max-width: 28rem; padding: .4rem .6rem; background: var(--bg); color: var(--text); border: 1px solid var(--border-field); border-radius: 5px; font-family: inherit; font-size: .85rem; }
+#note:focus { outline: none; border-color: var(--accent); }
 /* Desligar não tem volta pela rede; a moldura separa isso do resto da página. */
-.perigo { border-color: var(--erro-fundo); }
-.btns button.ruim { border-color: var(--erro-fundo); color: var(--erro); }
-.btns button.ruim:hover:not(:disabled) { background: var(--erro-fundo); color: var(--branco); }
+.danger { border-color: var(--error-bg); }
+.buttons button.bad { border-color: var(--error-bg); color: var(--error); }
+.buttons button.bad:hover:not(:disabled) { background: var(--error-bg); color: var(--white); }

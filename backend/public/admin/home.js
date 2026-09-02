@@ -9,18 +9,18 @@ async function tick() {
       fetch(API + '/api/music/player/status').then((r) => r.json()),
     ]);
 
-    $('leitorEstado').textContent = leitor.running ? 'ativo' : 'inativo';
-    $('leitorEstado').className = 'v ' + (leitor.running ? 'ok' : 'off');
-    $('leitorTag').textContent = leitor.tag ? leitor.tag.uid : '—';
+    $('readerState').textContent = leitor.running ? 'ativo' : 'inativo';
+    $('readerState').className = 'value-cell ' + (leitor.running ? 'ok' : 'off');
+    $('readerTag').textContent = leitor.tag ? leitor.tag.uid : '—';
 
     // O player não expõe "disponível" direto; volume nulo é o sinal de que
     // não há mpv atendendo do outro lado.
     const alive = player && player.volume !== undefined && player.volume !== null;
-    $('playerEstado').textContent = alive ? 'conectado' : 'sem mpv';
-    $('playerEstado').className = 'v ' + (alive ? 'ok' : 'off');
+    $('playerState').textContent = alive ? 'conectado' : 'sem mpv';
+    $('playerState').className = 'value-cell ' + (alive ? 'ok' : 'off');
 
     $('pAlbum').textContent = player.album || '—';
-    $('pFaixa').textContent = player.title
+    $('pTrack').textContent = player.title
       ? player.title + '  (' + (player.trackIndex + 1) + '/' + player.trackCount + ')'
       : '—';
     $('pPos').textContent = player.title
@@ -48,8 +48,8 @@ async function tick() {
 let printUrl = null;
 let captureTakenAt = null;
 
-$('btPrint').addEventListener('click', async () => {
-  const b = $('btPrint');
+$('btShot').addEventListener('click', async () => {
+  const b = $('btShot');
   b.disabled = true;
   b.textContent = 'capturando…';
 
@@ -74,13 +74,13 @@ $('btPrint').addEventListener('click', async () => {
     $('print').innerHTML =
       '<img src="' + printUrl + '" alt="Print da tela do Pi" />' +
       '<a href="' + printUrl + '" download="' + name + '">baixar ' + name + '</a>';
-    $('print').classList.add('visivel');
+    $('print').classList.add('visible');
 
     // A linha de guardar só existe depois de haver o que guardar.
-    $('guardar').classList.add('visivel');
-    $('nota').value = '';
-    $('btGuardar').disabled = false;
-    $('btGuardar').textContent = 'guardar no Pi';
+    $('saveRow').classList.add('visible');
+    $('note').value = '';
+    $('btSave').disabled = false;
+    $('btSave').textContent = 'guardar no Pi';
   } catch (e) {
     alert('Não deu para tirar o print: ' + e.message);
   }
@@ -96,8 +96,8 @@ $('btPrint').addEventListener('click', async () => {
  * veio na captura, para o backend recusar se alguém tiver capturado de novo
  * no meio. Gravar a imagem errada com a nota certa é pior que recusar.
  */
-$('btGuardar').addEventListener('click', async () => {
-  const b = $('btGuardar');
+$('btSave').addEventListener('click', async () => {
+  const b = $('btSave');
   b.disabled = true;
   b.textContent = 'guardando…';
 
@@ -105,7 +105,7 @@ $('btGuardar').addEventListener('click', async () => {
     const r = await fetch(API + '/api/prints', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ at: captureTakenAt, note: $('nota').value }),
+      body: JSON.stringify({ at: captureTakenAt, note: $('note').value }),
     });
     const body = await r.json();
     if (!r.ok) throw new Error(body.error || 'Falhou');
@@ -142,12 +142,12 @@ async function machine(action, pergunta) {
   clearInterval(heartbeat);
   document.querySelectorAll('button').forEach((b) => (b.disabled = true));
 
-  // outerHTML, e não innerHTML: o #servicos se repinta sozinho pelo htmx, e
+  // outerHTML, e não innerHTML: o #services se repinta sozinho pelo htmx, e
   // trocar só o conteúdo deixaria o polling vivo para apagar esta mensagem na
   // volta seguinte. Substituindo o elemento inteiro por um sem hx-*, o htmx
   // recolhe o timer junto com o nó que saiu.
-  $('servicos').outerHTML =
-    '<div class="card"><div class="linha"><span class="k">' +
+  $('services').outerHTML =
+    '<div class="card"><div class="row"><span class="key-cell">' +
     (action === 'reboot'
       ? 'Reiniciando… recarregue a página em cerca de um minuto.'
       : 'Desligando. Para ligar de novo é preciso ir até o Pi.') +

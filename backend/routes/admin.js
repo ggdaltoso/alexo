@@ -84,7 +84,7 @@ router.post('/partials/services/:key/:action', async (req, res) => {
   try {
     plan = services.prepare(req.params.key, req.params.action);
   } catch (err) {
-    return res.status(400).send(`<div class="linha"><span class="k erro">${err.message}</span></div>`);
+    return res.status(400).send(`<div class="row"><span class="key-cell error">${err.message}</span></div>`);
   }
 
   if (plan.selfKilling) {

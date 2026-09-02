@@ -49,7 +49,7 @@ function show(label, s) {
   const pos = s.position.toFixed(1);
   const dur = s.duration ? s.duration.toFixed(1) : '?';
   console.log(
-    `  ${label.padEnd(10)} ${s.isPlaying ? 'playing' : 'parado '}  ` +
+    `  ${label.padEnd(10)} ${s.isPlaying ? 'tocando' : 'parado '}  ` +
       `faixa ${s.trackCount ? `${s.trackIndex + 1}/${s.trackCount}` : '-/-'}  ${pos}s/${dur}s  vol ${s.volume}  ${s.title || '-'}`
   );
 }

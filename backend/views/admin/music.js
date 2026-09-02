@@ -7,11 +7,11 @@ module.exports = function musicPage({ apiBase, albums, mappings }) {
     .join('');
 
   const rows = mappings.length === 0
-    ? '<tr><td colspan="4" class="vazio">Nenhuma tag cadastrada.</td></tr>'
+    ? '<tr><td colspan="4" class="empty">Nenhuma tag cadastrada.</td></tr>'
     : mappings.map(({ uid, album, count }) => {
         // Álbum sem tracks = folder renomeada depois do cadastro. Precisa gritar,
         // porque o sintoma sem isso é "encostei a tag e não tocou".
-        const notify = count === 0 ? ' <span class="error">sem tracks!</span>' : '';
+        const notify = count === 0 ? ' <span class="error">sem faixas!</span>' : '';
         return `<tr>
           <td class="uid">${uid}</td>
           <td>${album}${notify}</td>
@@ -25,7 +25,7 @@ module.exports = function musicPage({ apiBase, albums, mappings }) {
 
   return layout({
     title: 'Música — Admin',
-    page: 'musica',
+    page: 'music',
     apiBase,
     body: `
   <h1>Música — Admin</h1>
@@ -33,12 +33,12 @@ module.exports = function musicPage({ apiBase, albums, mappings }) {
 
   <h2>Cadastrar tag</h2>
   <div class="box">
-    <div class="leitor">
+    <div class="reader">
       <span>Tag no leitor:</span>
       <span class="pill" id="pill">nenhuma</span>
       <input id="uid" placeholder="UID (ou encoste uma tag)" size="20" />
       <select id="album">${options}</select>
-      <button onclick="salvar()">Mapear</button>
+      <button onclick="save()">Mapear</button>
     </div>
     <div class="status" id="msg"></div>
   </div>
@@ -53,23 +53,23 @@ module.exports = function musicPage({ apiBase, albums, mappings }) {
 
   <h2>Player</h2>
   <div class="box">
-    <div class="leitor">
-      <select id="pAlbum" onchange="carregarFaixas()">${options}</select>
-      <select id="pFaixa"><option>carregando...</option></select>
-      <button onclick="tocarSelecao()">Tocar</button>
+    <div class="reader">
+      <select id="pAlbum" onchange="loadTracks()">${options}</select>
+      <select id="pTrack"><option>carregando...</option></select>
+      <button onclick="playSelection()">Tocar</button>
     </div>
     <div class="status" id="player">carregando...</div>
-    <div class="controles">
-      <button onclick="acao('previous')">|◀ Anterior</button>
-      <button onclick="acao('pause')">|| Pausar</button>
-      <button onclick="acao('resume')">▶ Retomar</button>
-      <button onclick="acao('next')">Próxima ▶|</button>
-      <button class="del" onclick="acao('stop')">Parar</button>
+    <div class="controls">
+      <button onclick="action('previous')">|◀ Anterior</button>
+      <button onclick="action('pause')">|| Pausar</button>
+      <button onclick="action('resume')">▶ Retomar</button>
+      <button onclick="action('next')">Próxima ▶|</button>
+      <button class="del" onclick="action('stop')">Parar</button>
     </div>
-    <div class="controles">
+    <div class="controls">
       <button onclick="volume(-10)">Vol −</button>
       <button onclick="volume(10)">Vol +</button>
-      <button class="del" onclick="reimportar()">Reimportar catálogo</button>
+      <button class="del" onclick="reimport()">Reimportar catálogo</button>
     </div>
   </div>
 `,

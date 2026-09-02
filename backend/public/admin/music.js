@@ -4,7 +4,7 @@ let currentVolume = 100;
 function notify(t, error) {
   const el = document.getElementById('msg');
   el.textContent = t;
-  el.classList.toggle('falha', error);
+  el.classList.toggle('fail', error);
   el.classList.toggle('ok', !error);
 }
 
@@ -43,7 +43,7 @@ async function play(album, trackId) {
 // seria preciso escolher a faixa 1 explicitamente.
 async function loadTracks() {
   const album = document.getElementById('pAlbum').value;
-  const sel = document.getElementById('pFaixa');
+  const sel = document.getElementById('pTrack');
   sel.innerHTML = '<option value="">carregando...</option>';
   try {
     const r = await fetch(API + '/api/music/tracks?album=' + encodeURIComponent(album));
@@ -58,7 +58,7 @@ async function loadTracks() {
 }
 
 function playSelection() {
-  play(document.getElementById('pAlbum').value, document.getElementById('pFaixa').value || undefined);
+  play(document.getElementById('pAlbum').value, document.getElementById('pTrack').value || undefined);
 }
 
 async function action(name) {
@@ -96,7 +96,7 @@ async function readTag() {
     const field = document.getElementById('uid');
     if (d.tag) {
       pill.textContent = d.tag.uid;
-      pill.className = 'pill viva';
+      pill.className = 'pill live';
       if (document.activeElement !== field) field.value = d.tag.uid;
     } else {
       pill.textContent = d.running ? 'nenhuma' : 'leitor off';
