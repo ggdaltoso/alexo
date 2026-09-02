@@ -138,6 +138,7 @@ A monorepo with two halves and a deliberately thin seam between them.
 ### Backend
 - Node.js (the Pi runs 14.15.1) + Express
 - `ws` for WebSocket
+- `htmx` for the admin blocks that refresh on their own, served from `node_modules`, never a CDN
 - In production it serves the API *and* the built frontend on one port
 
 | Module | Responsibility |
@@ -148,6 +149,7 @@ A monorepo with two halves and a deliberately thin seam between them.
 | `routes/api/` | One router per subject, mounted in `routes/index.js` |
 | `routes/admin.js` | Admin pages: gathers the data, delegates the HTML |
 | `views/admin/` | The markup for those pages; `layout.js` is the shared shell |
+| `views/admin/partials/` | HTML fragments, served under `/admin/partials` for htmx |
 | `public/admin/` | Their CSS and client-side JS, served at `/admin/assets` |
 | `lib/ws.js` | WebSocket broadcast; `type` is the discriminator |
 | `lib/state.js` | Gallery, music catalogue, tag mappings, player state |
@@ -162,6 +164,15 @@ were client-side JavaScript trapped inside template literals — no syntax highl
 formatting. That code now lives in real `.css` and `.js` files under `public/admin/`, and the only
 thing the server still tells the browser is `window.ADMIN_API`. The views are down to 307 lines of
 markup.
+
+Blocks that refresh on their own are **htmx fragments**: a view under `views/admin/partials/` returns
+HTML with no page around it, `GET /admin/partials/<name>` serves it to an `hx-trigger`, and the actions
+`POST` to the same family of routes and get the refreshed block back. The services block on the admin
+index works this way; the rest of the pages are still plain server-rendered HTML. htmx is an npm
+dependency served from `node_modules` at `/admin/assets/vendor` — never from a CDN, because the admin
+is the tool you reach for exactly when the Pi's network is misbehaving.
+
+Identifiers, filenames and CSS classes are in English; comments and user-facing text are in Portuguese.
 
 Routes hold no domain logic: they validate the request, call into `lib/`, and broadcast. `config.js`
 is required first, before anything else, because it loads the `.env` that `musicPlayer` and
@@ -450,8 +461,8 @@ GET    /api/system/screenshot         PNG of whatever the display shows now
 
 ```
 GET    /api/prints                    saved prints, newest first, plus a size summary
-POST   /api/prints                    {em, nota}  keeps the print currently in the preview
-PUT    /api/prints/:id                {nota}      re-annotate a saved print
+POST   /api/prints                    {at, note}  keeps the print currently in the preview
+PUT    /api/prints/:id                {note}      re-annotate a saved print
 DELETE /api/prints/:id                removes the entry and the file
 ```
 
@@ -471,6 +482,7 @@ Server-rendered, no build step, no auth — they are meant for a device on your 
 | `/admin/music` | Tag → album mapping, player controls, catalogue re-import |
 | `/admin/gallery` | Photo upload and ordering |
 | `/admin/prints` | Saved screen captures, grouped by month |
+| `/admin/partials/services` | Not a page: the services block, refreshed by htmx every two seconds |
 
 | Dashboard | Gallery |
 |:---:|:---:|
@@ -481,7 +493,9 @@ Server-rendered, no build step, no auth — they are meant for a device on your 
 | ![Admin music](screens/admin-music.png) | ![Admin music player](screens/admin-music-player.png) |
 
 The dashboard polls the reader and the player every two seconds, so "Tag encostada" and "Tocando
-agora" reflect the device live. On the music page, holding a tag on the reader fills in the UID
+agora" reflect the device live. The services block refreshes on the same cadence but by a different
+route: it is an htmx fragment, so the HTML for it is built on the server, and a start/stop/restart
+returns the updated block instead of the page guessing when systemd will have settled. On the music page, holding a tag on the reader fills in the UID
 field for you — the UID comes from the same code path the player uses, so the two cannot disagree.
 
 > Gallery photos are blurred in this screenshot; they are personal pictures, not part of the
@@ -670,8 +684,9 @@ alexo/
 │   ├── routes/
 │   │   ├── index.js         # where each router is mounted
 │   │   ├── admin.js         # admin pages: data in, HTML out
-│   │   └── api/             # nfc, gallery, music, servicos, sistema, prints
+│   │   └── api/             # nfc, gallery, music, services, system, prints
 │   ├── views/admin/         # markup for the admin pages + layout.js
+│   │   └── partials/        # HTML fragments swapped in by htmx
 │   ├── public/admin/        # their CSS and client JS (served at /admin/assets)
 │   ├── lib/
 │   │   ├── ws.js            # WebSocket broadcast
@@ -681,15 +696,15 @@ alexo/
 │   │   ├── musicController.js  # NFC ←→ player glue
 │   │   ├── musicCatalog.js  # disk → catalogue
 │   │   ├── ids.js           # UUID v4 without crypto.randomUUID
-│   │   ├── imagem.js        # shrinks uploaded photos via Pillow
-│   │   ├── servicos.js      # systemd units, reboot, poweroff
-│   │   ├── tela.js          # screen capture via scrot
+│   │   ├── image.js         # shrinks uploaded photos via Pillow
+│   │   ├── services.js      # systemd units, reboot, poweroff
+│   │   ├── screen.js        # screen capture via scrot
 │   │   └── prints.js        # saved captures: files + index
 │   ├── scripts/             # bench tools
 │   ├── data/                # JSON state (never deployed)
 │   └── uploads/             # photos and MP3s (never deployed)
 ├── frontend/src/
-│   ├── components/          # Galeria, MusicPlayer, Letreiro, ...
+│   ├── components/          # Gallery, MusicPlayer, Marquee, ...
 │   ├── screens/             # Clock, Forecast, Exchange, ...
 │   ├── contexts/            # AppContext: WebSocket, navigation, timer
 │   ├── hooks/ services/ config/
