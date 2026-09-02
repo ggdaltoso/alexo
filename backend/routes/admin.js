@@ -1,10 +1,3 @@
-/**
- * Páginas do admin.
- *
- * Aqui só se juntam os dados; o HTML mora em views/admin/. A divisão é o que
- * mantém cada metade legível -- as páginas passam de 100 linhas de template
- * cada, e antes elas ficavam no meio das rotas de API.
- */
 const express = require('express');
 
 const { PORT, ehProducao } = require('../config');
@@ -18,13 +11,7 @@ const paginaPrints = require('../views/admin/prints');
 
 const router = express.Router();
 
-/**
- * De onde a página chama a API.
- *
- * Vazio em produção, onde o backend serve o próprio admin e a origem é a mesma.
- * Em desenvolvimento a página abre direto no backend, mas o frontend roda noutra
- * porta -- então o caminho precisa ser absoluto.
- */
+/** Vazio em produção, onde o admin sai do próprio backend e a origem é a mesma. */
 function baseDaApi(req) {
   return ehProducao ? '' : `http://${req.hostname}:${PORT}`;
 }
@@ -47,9 +34,6 @@ router.get('/', (req, res) => {
 });
 
 router.get('/music', (req, res) => {
-  // O `qtd` é contado aqui para a view não precisar conhecer o state. Zero
-  // faixas é o caso que a página precisa gritar: pasta renomeada depois do
-  // cadastro.
   const mappings = state.getTagMappings().map((m) => ({
     uid: m.uid,
     album: m.album,

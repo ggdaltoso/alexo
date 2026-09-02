@@ -1,10 +1,4 @@
-/*
- * Base das páginas de admin.
- *
- * As cores vivem aqui como custom properties porque eram o que de fato se
- * repetia entre as quatro páginas -- #888 aparecia 13 vezes, #3b82f6 dez. O
- * resto do CSS é específico de cada página e mora no .css dela.
- */
+/* Base das páginas de admin: a paleta e o que vale para todas elas. */
 :root {
   --fundo: #111;
   --superficie: #1e1e1e;
@@ -36,7 +30,6 @@ body {
   padding: 2rem;
 }
 
-/* A linha de links logo abaixo do <h1>. A margem negativa a encosta no título,
-   que traz a própria margem de baixo. */
+/* Margem negativa: encosta a linha de links no <h1>, que traz margem de baixo. */
 .nav { color: var(--texto-fraco); margin: -1rem 0 1.5rem; }
 .nav a { color: var(--link); }

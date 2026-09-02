@@ -1,10 +1,3 @@
-/**
- * Catálogo, tags e player.
- *
- * Convenções da galeria mantidas: broadcast após mutação, 404 com corpo JSON.
- * A diferença é que faixas não sobem por formulário -- vêm do disco, via
- * importador. Ver lib/musicCatalog.js.
- */
 const express = require('express');
 
 const wsServer = require('../../lib/ws');

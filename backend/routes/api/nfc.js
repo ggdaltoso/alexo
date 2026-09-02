@@ -1,9 +1,6 @@
 /**
- * NFC: o recado que aparece na tela e a simulação de tag.
- *
- * Montado em /api (e não em /api/nfc) porque os dois caminhos que vivem aqui
- * não compartilham prefixo -- /api/nfc e /api/nfc-tag/simulate. Separá-los em
- * dois módulos por causa do hífen esconderia que são o mesmo assunto.
+ * Montado em /api, e não em /api/nfc: os dois caminhos daqui não compartilham
+ * prefixo -- /api/nfc e /api/nfc-tag/simulate.
  */
 const express = require('express');
 

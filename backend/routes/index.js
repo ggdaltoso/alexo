@@ -1,10 +1,3 @@
-/**
- * Onde cada grupo de rotas é pendurado.
- *
- * Os caminhos dentro de cada módulo são relativos ao prefixo daqui: quem
- * procura /api/music/tags encontra `/tags` no routes/api/music.js. O nfc é a
- * exceção e monta em /api inteiro -- ver o comentário no próprio arquivo.
- */
 const express = require('express');
 
 const nfc = require('./api/nfc');

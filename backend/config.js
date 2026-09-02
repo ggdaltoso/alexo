@@ -1,16 +1,12 @@
 /**
  * Configuração e caminhos do backend.
  *
- * Este arquivo é requerido antes de tudo (ver server.js) porque carrega o .env:
- * módulos como o musicPlayer e o nfcReader leem process.env já na hora do
- * require, então quem chegar antes do dotenv pega os defaults e não o que está
- * no .env da raiz.
+ * Requerido antes de tudo (ver server.js): é quem carrega o .env, e o
+ * musicPlayer e o nfcReader leem process.env já no require.
  *
- * Os caminhos moram aqui, e não em cada módulo, porque `data/` e `uploads/`
- * ficam na RAIZ do backend enquanto o código que os usa mora em lib/ e
- * routes/. Com `__dirname` espalhado, mover um arquivo de pasta silenciosamente
- * apontaria para `lib/data/` -- e no Pi isso não daria erro, só criaria uma
- * segunda galeria vazia ao lado da de verdade.
+ * Os caminhos moram aqui porque `data/` e `uploads/` ficam na RAIZ do backend e
+ * o código que os usa, não. Com `__dirname` espalhado, mover um arquivo de
+ * pasta passaria a apontar para `lib/data/` sem dar erro nenhum.
  */
 const path = require('path');
 

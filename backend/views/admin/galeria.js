@@ -1,4 +1,3 @@
-/** Galeria: reordenar e remover as fotos que a tela mostra. */
 const layout = require('./layout');
 
 module.exports = function paginaGaleria({ apiBase, images }) {

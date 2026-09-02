@@ -1,9 +1,3 @@
-/**
- * Galeria de fotos: upload, ordem e remoção.
- *
- * Convenção seguida também pelas outras rotas: broadcast no WebSocket depois de
- * toda mutação, e 404 com corpo JSON.
- */
 const express = require('express');
 const fs = require('fs');
 const path = require('path');

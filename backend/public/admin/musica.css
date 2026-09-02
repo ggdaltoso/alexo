@@ -18,8 +18,7 @@ th { color: var(--texto-fraco); font-weight: 600; font-size: .8rem; text-transfo
 .pill { font-family: ui-monospace, monospace; padding: .35rem .7rem; border-radius: 999px; background: var(--campo); color: var(--texto-fraco); }
 .pill.viva { background: #064e3b; color: var(--ok); }
 .status { margin-top: .75rem; color: var(--texto-medio); font-size: .9rem; }
-/* O aviso do formulário: verde deu certo, vermelho falhou. Por id porque a cor
-   sobrepõe a do .status que o elemento já carrega. */
+/* Por id: a cor precisa sobrepor a do .status que o elemento já carrega. */
 #msg.ok { color: var(--ok); }
 #msg.falha { color: var(--erro); }
 .controles { display: flex; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }

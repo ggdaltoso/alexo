@@ -1,6 +1,3 @@
-/**
- * Desligar/reiniciar a máquina e tirar print da tela.
- */
 const express = require('express');
 
 const servicos = require('../../lib/servicos');

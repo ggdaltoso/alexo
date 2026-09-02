@@ -1,9 +1,4 @@
-/**
- * Cadastro de tags NFC e controle do player.
- *
- * `mappings` chega com o `qtd` já contado pela rota: contar faixas aqui exigiria
- * que a view conhecesse o state, e o que ela precisa saber é só quantas são.
- */
+/** `mappings` chega com o `qtd` já contado pela rota. */
 const layout = require('./layout');
 
 module.exports = function paginaMusica({ apiBase, albums, mappings }) {

@@ -1,9 +1,3 @@
-/**
- * Serviços systemd do Pi.
- *
- * A unidade nunca vem do pedido -- ver lib/servicos.js, que é onde a tabela de
- * chaves mora e onde está explicado por que isso importa.
- */
 const express = require('express');
 
 const servicos = require('../../lib/servicos');

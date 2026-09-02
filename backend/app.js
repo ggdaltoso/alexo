@@ -1,9 +1,3 @@
-/**
- * Montagem do Express: middlewares, rotas e os arquivos estáticos.
- *
- * Separado do server.js para que subir o HTTP (e o WebSocket junto) seja uma
- * coisa, e o que a aplicação responde seja outra.
- */
 const path = require('path');
 const express = require('express');
 

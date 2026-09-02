@@ -1,13 +1,5 @@
-/**
- * Ponto de entrada: sobe o HTTP, pendura o WebSocket no mesmo servidor e
- * encerra limpo.
- *
- * O config vem primeiro de propósito: é ele que carrega o .env, e módulos como
- * o musicPlayer e o nfcReader leem process.env já no require. Qualquer coisa
- * requerida antes dele pegaria os valores padrão em vez dos do .env.
- *
- * O que a aplicação responde está no app.js e em routes/.
- */
+// Primeiro de propósito: o config carrega o .env, e o musicPlayer e o
+// nfcReader leem process.env já no require.
 const { PORT, NODE_ENV } = require('./config');
 
 const http = require('http');
