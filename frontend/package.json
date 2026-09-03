@@ -8,7 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@react95/core": "^9.8.3",
+    "@react95/core": "^9.8.4",
     "@react95/icons": "^2.5.3",
     "@tanstack/react-query": "^5.90.12",
     "date-fns": "^3.3.1",
