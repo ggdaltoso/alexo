@@ -1,37 +1,5 @@
 const API = window.ADMIN_API;
 const $ = (id) => document.getElementById(id);
-const mm = (v) => String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(Math.floor(v % 60)).padStart(2, '0');
-
-async function tick() {
-  try {
-    const [leitor, player] = await Promise.all([
-      fetch(API + '/api/music/reader').then((r) => r.json()),
-      fetch(API + '/api/music/player/status').then((r) => r.json()),
-    ]);
-
-    $('readerState').textContent = leitor.running ? 'ativo' : 'inativo';
-    $('readerState').className = 'value-cell ' + (leitor.running ? 'ok' : 'off');
-    $('readerTag').textContent = leitor.tag ? leitor.tag.uid : '—';
-
-    // O player não expõe "disponível" direto; volume nulo é o sinal de que
-    // não há mpv atendendo do outro lado.
-    const alive = player && player.volume !== undefined && player.volume !== null;
-    $('playerState').textContent = alive ? 'conectado' : 'sem mpv';
-    $('playerState').className = 'value-cell ' + (alive ? 'ok' : 'off');
-
-    $('pAlbum').textContent = player.album || '—';
-    $('pTrack').textContent = player.title
-      ? player.title + '  (' + (player.trackIndex + 1) + '/' + player.trackCount + ')'
-      : '—';
-    $('pPos').textContent = player.title
-      ? (player.isPlaying ? '▶ ' : '|| ') + mm(player.position) + (player.duration ? ' / ' + mm(player.duration) : '')
-      : '—';
-    $('pVol').textContent = alive ? player.volume : '—';
-  } catch (e) {
-    // backend reiniciando: a próxima volta pega
-  }
-}
-
 /*
  * Print da tela.
  *
@@ -139,13 +107,16 @@ async function machine(action, pergunta) {
     // A máquina pode cair antes da resposta chegar; não é erro.
   }
 
-  clearInterval(heartbeat);
   document.querySelectorAll('button').forEach((b) => (b.disabled = true));
 
-  // outerHTML, e não innerHTML: o #services se repinta sozinho pelo htmx, e
+  // outerHTML, e não innerHTML: os blocos se repintam sozinhos pelo htmx, e
   // trocar só o conteúdo deixaria o polling vivo para apagar esta mensagem na
   // volta seguinte. Substituindo o elemento inteiro por um sem hx-*, o htmx
   // recolhe o timer junto com o nó que saiu.
+  //
+  // O #hardware é quem tem o hx-trigger; o #playing só recebe o swap dele, então
+  // basta parar o primeiro para os dois congelarem.
+  $('hardware').remove();
   $('services').outerHTML =
     '<div class="card"><div class="row"><span class="key-cell">' +
     (action === 'reboot'
@@ -161,5 +132,3 @@ $('btPoweroff').addEventListener('click', () =>
   machine('poweroff', 'DESLIGAR o Pi?\\n\\nNão há como ligar de volta pela rede: ' +
     'o Zero W não tem wake-on-LAN. Só indo até ele.'));
 
-tick();
-const heartbeat = setInterval(tick, 2000);
