@@ -183,8 +183,18 @@ the code that uses them does not, so the paths are defined in one place instead 
 the player knows nothing about tags.
 
 ### Environment configuration
-A single `.env` at the root configures both halves. In development they run on separate ports with
-CORS; in production the backend serves everything.
+There are two `.env` files, read at different times:
+
+| File | Read by | When |
+|---|---|---|
+| `.env` (root) | the backend (`backend/config.js`) | when the server starts |
+| `frontend/.env` | Vite | at **build** time, on the machine that runs the build |
+
+The deploy builds on the development machine and ships only `dist/`, so the frontend's values
+come from *that* machine's `frontend/.env`. `VITE_*` lines in the Pi's root `.env` do nothing.
+
+In development the two halves run on separate ports and Vite proxies `/api`, `/uploads` and `/ws`
+to the backend; in production the backend serves everything.
 
 ## Getting Started
 
@@ -202,34 +212,31 @@ npm install
 cd frontend && npm install && cd ..
 cd backend && npm install && cd ..
 cp .env.example .env
+cp .env.example frontend/.env
 ```
 
 ### Environment variables
 
-**Development** (`.env`):
+**Backend** (`.env`):
 ```bash
 PORT=3001
-NODE_ENV=development
-VITE_API_URL=http://localhost:3001
-VITE_WS_URL=ws://localhost:3001
-VITE_TODOIST_API_TOKEN=your_todoist_api_token_here
+NODE_ENV=development       # production on the Pi
 ```
 
-**Production**:
+**Frontend** (`frontend/.env`), the same in development and for the deploy build:
 ```bash
-PORT=3001
-NODE_ENV=production
-VITE_API_URL=              # empty = relative URLs
+VITE_API_URL=              # empty = same host as the page
 VITE_WS_URL=               # empty = ws://<page host>
 VITE_TODOIST_API_TOKEN=your_todoist_api_token_here
 ```
 
-Leave `VITE_WS_URL` empty in production. The value is baked into the bundle at build time, and
-`localhost` there means the machine running the browser: it works on the Pi's own screen and
-nowhere else. Opened from another computer at `http://<pi>:3001/`, the page would try that
-computer's port 3001, and the music player and live gallery updates would silently stop. Empty
-falls back to the host that served the page (`frontend/src/config/api.ts`), which is right in both
-places. Development still needs the explicit URL, since Vite serves the page from port 5173.
+Leave both URLs empty. They are baked into the bundle, and `localhost` there means the machine
+running the browser: it works on the Pi's own screen and nowhere else. Opened from another
+computer at `http://<pi>:3001/`, the page would try that computer's port 3001; with
+`VITE_WS_URL` that silently stops the music player, live gallery updates and NFC messages, while
+the clock, weather, rates and Todoist keep working and make the page look fine. Empty falls back
+to the host that served the page (`frontend/src/config/api.ts`), and in development the Vite
+proxy covers the gap between ports 5173 and 3001.
 
 Backend-only variables, all optional:
 
