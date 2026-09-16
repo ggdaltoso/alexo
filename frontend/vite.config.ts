@@ -19,6 +19,8 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:3001',
       '/uploads': 'http://localhost:3001',
+      // Com o proxy do socket, VITE_WS_URL pode ficar vazio também no dev.
+      '/ws': { target: 'ws://localhost:3001', ws: true },
     },
   },
   plugins: [react(), viteSingleFile()],
