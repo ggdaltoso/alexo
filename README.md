@@ -220,9 +220,16 @@ VITE_TODOIST_API_TOKEN=your_todoist_api_token_here
 PORT=3001
 NODE_ENV=production
 VITE_API_URL=              # empty = relative URLs
-VITE_WS_URL=ws://localhost:3001
+VITE_WS_URL=               # empty = ws://<page host>
 VITE_TODOIST_API_TOKEN=your_todoist_api_token_here
 ```
+
+Leave `VITE_WS_URL` empty in production. The value is baked into the bundle at build time, and
+`localhost` there means the machine running the browser: it works on the Pi's own screen and
+nowhere else. Opened from another computer at `http://<pi>:3001/`, the page would try that
+computer's port 3001, and the music player and live gallery updates would silently stop. Empty
+falls back to the host that served the page (`frontend/src/config/api.ts`), which is right in both
+places. Development still needs the explicit URL, since Vite serves the page from port 5173.
 
 Backend-only variables, all optional:
 
