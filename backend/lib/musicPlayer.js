@@ -188,6 +188,7 @@ async function reconnect() {
       ipc = new MpvIpc(socket);
       wireEvents();
       current = { album: null, tracks: [], volume: current.volume };
+      lastLoaded = { index: 0, duration: null };
       // mpv novo: o device dele está aberto, seja qual for o estado do anterior.
       cancelAudioRelease();
       audioReleased = false;
@@ -249,8 +250,28 @@ let current = {
 let lastIsPlaying = null;
 let stateChangedAt = Date.now();
 
+// Última faixa que o mpv teve de fato carregada, com a duração que ele informou.
+//
+// Quando o álbum acaba, o mpv larga a faixa atual e `playlist-pos`, `time-pos` e
+// `duration` somem junto. Sem esta memória, o fim do álbum só saberia dizer
+// "nada", e o painel perderia a faixa que acabou de tocar bem na hora de
+// mostrá-la parada.
+let lastLoaded = { index: 0, duration: null };
+
 function trackAt(index) {
   return current.tracks[index] || null;
+}
+
+/**
+ * O álbum chegou ao fim?
+ *
+ * É assim que um álbum termina: o mpv larga a faixa atual e volta ao modo
+ * ocioso, sem tocar em `pause` -- que continua em false. `idle-active` é o sinal
+ * direto; `playlist-pos = -1` fica de reserva para o caso de o mpv não expor a
+ * propriedade. A playlist carregada é o que separa "acabou" de "nunca começou".
+ */
+function ended(ocioso, indice) {
+  return current.tracks.length > 0 && (ocioso === true || indice === -1);
 }
 
 async function buildStatus() {
@@ -266,17 +287,43 @@ async function buildStatus() {
     }
   };
 
-  const [pausado, posicao, duracao, indice, volume] = await Promise.all([
+  const [pausado, posicao, duracao, indice, volume, ocioso] = await Promise.all([
     get('pause'),
     get('time-pos'),
     get('duration'),
     get('playlist-pos'),
     get('volume'),
+    get('idle-active'),
   ]);
 
-  const idx = typeof indice === 'number' && indice >= 0 ? indice : 0;
+  // Álbum acabado não é "tocando" -- e tratar como tal era o que fazia o painel
+  // anunciar a faixa 1 na posição 0 para sempre, com o contador do cliente
+  // recomeçando do zero a cada rebroadcast.
+  const acabou = ended(ocioso, indice);
+
+  let idx = typeof indice === 'number' && indice >= 0 ? indice : 0;
+  let position = typeof posicao === 'number' ? posicao : 0;
+  let duration = typeof duracao === 'number' ? duracao : null;
+
+  if (acabou) {
+    // A última faixa é o que o painel deve mostrar parado, congelada no fim --
+    // é onde a reprodução realmente parou. Voltar para 00:00 na faixa 1 daria a
+    // impressão de que o álbum vai recomeçar.
+    idx = lastLoaded.index;
+    duration = lastLoaded.duration;
+    position = duration || 0;
+  } else if (typeof indice === 'number' && indice >= 0) {
+    // Na troca de faixa a duração demora um instante para aparecer. Herdar a da
+    // faixa anterior seria pior que admitir que ainda não sabemos.
+    const mesmaFaixa = indice === lastLoaded.index;
+    lastLoaded = {
+      index: indice,
+      duration: duration === null && mesmaFaixa ? lastLoaded.duration : duration,
+    };
+  }
+
   const track = trackAt(idx);
-  const playing = pausado === false && track !== null;
+  const playing = !acabou && pausado === false && track !== null;
 
   // Só carimba quando o valor muda de verdade: buildStatus roda a cada polling,
   // e carimbar sempre destruiria a informação que este campo carrega.
@@ -293,10 +340,10 @@ async function buildStatus() {
     title: track ? track.title : null,
     filename: track ? track.filename : null,
     isPlaying: playing,
-    position: typeof posicao === 'number' ? posicao : 0,
+    position: position,
     positionAt: Date.now(),
     stateChangedAt: stateChangedAt,
-    duration: typeof duracao === 'number' ? duracao : null,
+    duration: duration,
     volume: typeof volume === 'number' ? volume : current.volume,
   };
 }
@@ -455,6 +502,7 @@ async function playAlbum(album, tracks, startIndex = 0) {
 
   await reclaimAudio();
   current = { album, tracks: tracks.slice(), volume: current.volume };
+  lastLoaded = { index: 0, duration: null };
 
   const filePath = (t) => path.join(MUSIC_DIR, t.filename);
 
@@ -577,8 +625,21 @@ async function stop() {
   if (!available) return null;
   await ipc.command('stop').catch(() => {});
   current = { album: null, tracks: [], volume: current.volume };
+  lastLoaded = { index: 0, duration: null };
   scheduleAudioRelease();
   return emitStatus();
+}
+
+/**
+ * Pergunta ao mpv se o álbum acabou. Consulta ao vivo, e não o último status:
+ * quem chama está decidindo o que fazer com um gesto do usuário, e um espelho
+ * desatualizado aqui viraria um álbum recomeçando do nada.
+ */
+async function playlistEnded() {
+  if (!available || !ipc) return false;
+  const get = (prop) => ipc.command('get_property', prop).catch(() => null);
+  const [ocioso, indice] = await Promise.all([get('idle-active'), get('playlist-pos')]);
+  return ended(ocioso, indice);
 }
 
 async function getStatus() {
@@ -617,6 +678,7 @@ player.previous = previous;
 player.setVolume = setVolume;
 player.stop = stop;
 player.getStatus = getStatus;
+player.playlistEnded = playlistEnded;
 player.close = close;
 player.isAvailable = () => available;
 
