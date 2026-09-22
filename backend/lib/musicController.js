@@ -8,6 +8,8 @@
  * Regras do gesto:
  *   tag encostada, sem mapeamento     -> ignora
  *   tag encostada, é a que pausou     -> retoma de onde parou
+ *   tag encostada, é a que pausou,
+ *     mas o álbum já tinha acabado    -> toca de novo, do começo
  *   tag encostada, é outra            -> troca de álbum, começa do zero
  *   tag removida, é a que está ativa  -> pausa
  *   tag removida, é outra             -> ignora
@@ -57,9 +59,14 @@ async function onTagPresent({ uid }) {
 
   const player = state.getPlayerState();
 
-  if (player.pausedUid === uid) {
-    // Mesma tag que acabou de sair: retomar preserva a posição, que é o efeito
-    // que faz a caixinha parecer ter memória.
+  // Mesma tag que acabou de sair: retomar preserva a posição, que é o efeito que
+  // faz a caixinha parecer ter memória.
+  //
+  // Só que não há posição para retomar se o álbum tiver acabado sozinho antes: a
+  // playlist do mpv está esgotada, e `resume()` ali tiraria o pause de coisa
+  // nenhuma -- o gesto devolveria silêncio. Nesse caso o caminho normal logo
+  // abaixo toca o álbum de novo, do começo.
+  if (player.pausedUid === uid && !(await musicPlayer.playlistEnded())) {
     console.log(`[music] tag ${uid} de volta — retomando ${mapping.album}`);
     state.setPlayerState({ activeTagUid: uid, pausedUid: null });
     await musicPlayer.resume();

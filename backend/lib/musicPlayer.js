@@ -630,6 +630,18 @@ async function stop() {
   return emitStatus();
 }
 
+/**
+ * Pergunta ao mpv se o álbum acabou. Consulta ao vivo, e não o último status:
+ * quem chama está decidindo o que fazer com um gesto do usuário, e um espelho
+ * desatualizado aqui viraria um álbum recomeçando do nada.
+ */
+async function playlistEnded() {
+  if (!available || !ipc) return false;
+  const get = (prop) => ipc.command('get_property', prop).catch(() => null);
+  const [ocioso, indice] = await Promise.all([get('idle-active'), get('playlist-pos')]);
+  return ended(ocioso, indice);
+}
+
 async function getStatus() {
   if (!available) {
     return {
@@ -666,6 +678,7 @@ player.previous = previous;
 player.setVolume = setVolume;
 player.stop = stop;
 player.getStatus = getStatus;
+player.playlistEnded = playlistEnded;
 player.close = close;
 player.isAvailable = () => available;
 
