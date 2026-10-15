@@ -30,5 +30,6 @@ module.exports = {
   SCRIPTS_DIR: path.join(RAIZ, 'scripts'),
   PUBLIC_ADMIN_DIR: path.join(RAIZ, 'public', 'admin'),
   HTMX_DIR: path.join(RAIZ, 'node_modules', 'htmx.org', 'dist'),
+  CSS98_DIR: path.join(RAIZ, 'node_modules', '98.css', 'dist'),
   FRONTEND_DIST: path.join(RAIZ, '..', 'frontend', 'dist'),
 };

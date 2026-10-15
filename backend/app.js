@@ -2,7 +2,7 @@ const path = require('path');
 const express = require('express');
 
 const {
-  NODE_ENV, isProduction, UPLOADS_DIR, FRONTEND_DIST, PUBLIC_ADMIN_DIR, HTMX_DIR,
+  NODE_ENV, isProduction, UPLOADS_DIR, FRONTEND_DIST, PUBLIC_ADMIN_DIR, HTMX_DIR, CSS98_DIR,
 } = require('./config');
 const routes = require('./routes');
 
@@ -32,6 +32,9 @@ app.use('/admin/assets', express.static(PUBLIC_ADMIN_DIR));
 // uma dependência como as outras -- aparece no package.json, atualiza por npm e
 // não entra no diff do repo. O deploy já roda `npm install --production` no Pi.
 app.use('/admin/assets/vendor', express.static(HTMX_DIR));
+// Mesma ideia para o 98.css. Diretório próprio porque o CSS pede as fontes por
+// caminho relativo (ms_sans_serif.woff2), que precisam estar ao lado dele.
+app.use('/admin/assets/vendor/98', express.static(CSS98_DIR));
 
 app.use(routes);
 
