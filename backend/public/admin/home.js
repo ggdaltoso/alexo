@@ -1,5 +1,22 @@
 const API = window.ADMIN_API;
 const $ = (id) => document.getElementById(id);
+
+/*
+ * Filtro do polling dos serviços (o `[servicosLivres()]` do hx-trigger).
+ *
+ * O bloco é trocado inteiro a cada 2s, e no Zero W a resposta demora. Duas
+ * coisas quebravam com isso:
+ *   - um clique em que a troca cai entre apertar e soltar o botão some: o
+ *     navegador só gera `click` se os dois acontecem no mesmo elemento.
+ *     Visto no Pi em 15/10: o primeiro "Desligar" não fez nada.
+ *   - com o modal de confirmação aberto, o botão que o pediu é trocado por
+ *     baixo, e o htmx descarta em silêncio a requisição de elemento que saiu
+ *     da página: confirmar depois de 2s não desligaria nada.
+ * Então a rodada é pulada com o mouse ou o foco no bloco, ou com modal aberto.
+ * O htmx reagenda sozinho; a atualização volta até 2s depois.
+ */
+window.servicosLivres = () =>
+  !$('services').matches(':hover, :focus-within') && !dialogoAberto();
 /*
  * Print da tela.
  *

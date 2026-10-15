@@ -14,6 +14,9 @@
  *
  * `perigo` deixa o foco inicial no Cancelar: um Enter distraído em "Desligar o
  * Pi?" não pode ser o que desliga.
+ *
+ * `dialogoAberto()` existe para quem atualiza a página por baixo: o confirm()
+ * nativo travava a página e o polling junto; o modal não trava nada.
  */
 (function () {
   function abrir({ titulo, mensagem, botoes, foco }) {
@@ -74,6 +77,8 @@
     }).then(() => undefined);
   };
 
+  window.dialogoAberto = () => document.querySelector('dialog.dialogo[open]') !== null;
+
   window.confirmar = function confirmar(
     mensagem,
     { titulo = 'Confirmar', ok = 'OK', cancelar = 'Cancelar', perigo = false } = {}
@@ -95,16 +100,42 @@
   //
   // Título e botão vêm de data-confirmar-titulo/-ok no elemento, para o modal
   // dizer a ação ("Desligar") em vez de um "OK" genérico.
+  //
+  // O htmx descarta em silêncio a requisição de um elemento que saiu da
+  // página. Num bloco com polling, o botão clicado pode ser trocado enquanto o
+  // modal está aberto -- pausar o polling com dialogoAberto() evita as rodadas
+  // novas, mas não a que já estava em voo no clique. Então, se no "sim" o
+  // botão não está mais lá, o equivalente é o que tem a mesma rota: ele é
+  // clicado já marcado como confirmado, e a marca faz este handler liberar a
+  // requisição sem perguntar de novo.
   document.addEventListener('htmx:confirm', (e) => {
     if (!e.detail.question) return;
     e.preventDefault();
-    const d = e.detail.elt.dataset;
+    const elt = e.detail.elt;
+    if (elt.dataset.confirmado) {
+      delete elt.dataset.confirmado;
+      e.detail.issueRequest(true);
+      return;
+    }
+
+    const d = elt.dataset;
     confirmar(e.detail.question, {
       titulo: d.confirmarTitulo || 'Confirmar',
       ok: d.confirmarOk || 'OK',
       perigo: true,
     }).then((sim) => {
-      if (sim) e.detail.issueRequest(true);
+      if (!sim) return;
+      if (elt.isConnected) return e.detail.issueRequest(true);
+
+      const rota = `hx-${e.detail.verb}`;
+      const novo = [...document.querySelectorAll(`[${rota}]`)]
+        .find((el) => el.getAttribute(rota) === e.detail.path);
+      if (!novo) {
+        return aviso('O estado mudou enquanto a confirmação estava aberta, e nada foi feito. ' +
+          'Confira e tente de novo.', { titulo: d.confirmarTitulo || 'Confirmar' });
+      }
+      novo.dataset.confirmado = '1';
+      novo.click();
     });
   });
 })();

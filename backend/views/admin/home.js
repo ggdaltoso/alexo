@@ -52,9 +52,10 @@ module.exports = function homePage({ apiBase, imageCount, trackCount, albumCount
 
   <fieldset>
     <legend>Serviços</legend>
+    <!-- Polling pausado sob o mouse e com modal aberto: ver servicosLivres() no home.js. -->
     <div id="services"
          hx-get="/admin/partials/services"
-         hx-trigger="load, every 2s"
+         hx-trigger="load, every 2s [servicosLivres()]"
          hx-swap="innerHTML"
          hx-sync="this:replace"><div class="row"><span class="key-cell">Carregando…</span></div></div>
     <p class="note">
