@@ -79,14 +79,26 @@ const playerActions = {
   stop: () => musicController.stopPlayback(),
 };
 
+// O que acompanha a ação no log. Só o admin chama estas rotas -- a tela não tem
+// controles -- e sem esta linha uma pausa do admin era indistinguível, no
+// journal, de uma pausa que ninguém pediu. Em 13/10/2026 o "Parar" só pôde ser
+// deduzido pelo estado zerado do player.
+function detalheDaAcao(name, body) {
+  if (name === 'play') return ` — ${body.album}${body.trackId ? ` / ${body.trackId}` : ''}`;
+  if (name === 'volume') return ` — ${body.value}`;
+  return '';
+}
+
 router.post('/player/:action', async (req, res) => {
   const action = playerActions[req.params.action];
   if (!action) return res.status(404).json({ error: `Ação desconhecida: ${req.params.action}` });
+  console.log(`[music] admin: ${req.params.action}${detalheDaAcao(req.params.action, req.body || {})}`);
   try {
     const status = await action(req.body || {});
     // status nulo = player indisponível (sem mpv). Não é erro do pedido.
     res.json(status || (await musicController.getStatus()));
   } catch (err) {
+    console.error(`[music] admin: ${req.params.action} falhou: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
