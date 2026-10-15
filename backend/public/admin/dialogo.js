@@ -48,19 +48,27 @@
         linha.appendChild(el);
       }
 
-      let valor = 'fechar';
-      dialog.addEventListener('click', (e) => {
-        const b = e.target.closest('button');
-        if (b) {
-          valor = b.value;
-          dialog.close();
-        }
-      });
-      // Esc dispara 'cancel' e depois 'close'; o valor fica o 'fechar' inicial.
-      dialog.addEventListener('close', () => {
+      // Resolve na hora, no clique ou no Esc, em vez de esperar o evento
+      // 'close': ele chega numa tarefa à parte que o Chrome adia em aba fora de
+      // foco, e a resposta ficava parada até alguém olhar a aba. 'close' fica só
+      // de reserva, para um fechamento que não passe por aqui.
+      let resolvido = false;
+      const fechar = (valor) => {
+        if (resolvido) return;
+        resolvido = true;
+        if (dialog.open) dialog.close();
         dialog.remove();
         resolve(valor);
+      };
+      dialog.addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (b) fechar(b.value);
       });
+      dialog.addEventListener('cancel', (e) => {
+        e.preventDefault();
+        fechar('fechar');
+      });
+      dialog.addEventListener('close', () => fechar('fechar'));
 
       document.body.appendChild(dialog);
       dialog.showModal();
