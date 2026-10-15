@@ -50,9 +50,16 @@ const SERVICOS = {
   },
 };
 
-function systemctl(args) {
+/*
+ * `comoRoot: false` é para leitura. `systemctl show` não precisa de root, e
+ * cada `sudo` deixa duas linhas no journal (sudo + pam_unix): com o admin
+ * aberto atualizando o painel, eram 2.807 linhas em duas semanas, contra
+ * dezenas de log útil, num journal limitado a 50 MB.
+ */
+function systemctl(args, { comoRoot = true } = {}) {
+  const [cmd, argv] = comoRoot ? ['sudo', ['-n', 'systemctl'].concat(args)] : ['systemctl', args];
   return new Promise((resolve, reject) => {
-    execFile('sudo', ['-n', 'systemctl'].concat(args), { timeout: 15000 }, (err, stdout, stderr) => {
+    execFile(cmd, argv, { timeout: 15000 }, (err, stdout, stderr) => {
       // `is-active` sai com código != 0 quando o serviço está parado, o que é
       // uma resposta e não uma falha. Quem chama decide.
       if (err && !stdout) return reject(new Error((stderr || err.message).trim()));
@@ -72,7 +79,7 @@ async function statusDe(key) {
       '-p', 'SubState',
       '-p', 'ActiveEnterTimestamp',
       '--value',
-    ]);
+    ], { comoRoot: false });
     const [state, sub, since] = output.split('\n');
     return {
       key,
