@@ -1,18 +1,14 @@
-h1 { margin: 0 0 1.5rem; font-size: 1.4rem; }
-.upload-form { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; }
-.upload-form label { display: block; margin-bottom: .5rem; font-size: .9rem; color: var(--text-mid); }
-.upload-form input[type=file] { width: 100%; padding: .5rem; background: var(--field); border: 1px solid var(--border-field); border-radius: 4px; color: var(--text); }
-.upload-form button { margin-top: 1rem; padding: .6rem 1.4rem; background: var(--accent); color: var(--white); border: none; border-radius: 6px; cursor: pointer; font-size: .95rem; }
-.upload-form button:hover { background: var(--accent-strong); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; position: relative; }
-.card img { width: 100%; height: 150px; object-fit: cover; display: block; }
-.order { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,.65); color: var(--white); font-size: .75rem; padding: 2px 6px; border-radius: 4px; }
-.move-btns { display: flex; }
-.move-btns button { flex: 1; padding: .4rem; background: #374151; color: var(--white); border: none; cursor: pointer; font-size: .85rem; }
-.move-btns button:hover { background: #4b5563; }
-.move-btns button:disabled { opacity: .3; cursor: default; }
-.del { width: 100%; padding: .5rem; background: #ef4444; color: var(--white); border: none; cursor: pointer; font-size: .85rem; }
-.del:hover { background: #dc2626; }
-.empty { color: var(--text-dim); text-align: center; margin: 2rem 0; }
-#status { margin-top: 1rem; font-size: .9rem; color: #4ade80; min-height: 1.2rem; }
+.linha { flex-wrap: wrap; gap: 6px; }
+.linha > * { margin: 0 !important; }
+.status { margin: 6px 0 0; min-height: 1.2em; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.moldura { position: relative; padding: 0; background: #000; }
+.moldura img { display: block; width: 100%; height: 130px; object-fit: cover; }
+.order { position: absolute; top: 4px; left: 4px; padding: 0 4px; background: #ffffe1; border: 1px solid #000; font-size: 11px; }
+.botoes { flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.botoes > * { margin: 0 !important; }
+/* Não encolhem abaixo do texto: com o respiro do ícone, "↓ Descer" não cabe
+   espremido num card estreito. Sem espaço, o Remover desce para outra linha. */
+.botoes button { min-width: 0; flex: 1 0 auto; padding: 0 8px; }
+.empty { color: var(--dim); text-align: center; margin: 16px 0; }

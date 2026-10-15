@@ -1,35 +1,46 @@
 const layout = require('./layout');
+const janela = require('./janela');
+const esc = require('./esc');
 
 module.exports = function galleryPage({ apiBase, images }) {
   const imageCards = images.length === 0
-    ? '<p class="empty">Nenhuma imagem cadastrada.</p>'
+    ? '<p class="empty">Nenhuma imagem na galeria.</p>'
     : [...images].sort((a, b) => a.order - b.order).map((img, i, arr) => `
-      <div class="card" data-id="${img.id}" data-order="${img.order}">
-        <span class="order">#${img.order}</span>
-        <img src="${apiBase}${img.url}" alt="${img.filename}" />
-        <div class="move-btns">
-          <button onclick="move('${img.id}', -1)" ${i === 0 ? 'disabled' : ''}>↑ Subir</button>
-          <button onclick="move('${img.id}', 1)" ${i === arr.length - 1 ? 'disabled' : ''}>↓ Descer</button>
+      <div class="card" data-id="${esc(img.id)}" data-order="${img.order}">
+        <div class="sunken-panel moldura">
+          <span class="order">#${img.order}</span>
+          <img src="${esc(apiBase + img.url)}" alt="${esc(img.filename)}" />
         </div>
-        <button class="del" onclick="deleteImage('${img.id}')">✕ Remover</button>
+        <div class="field-row botoes">
+          <button data-mover="-1" ${i === 0 ? 'disabled' : ''}><span class="icone" aria-hidden="true">↑</span>Subir</button>
+          <button data-mover="1" ${i === arr.length - 1 ? 'disabled' : ''}><span class="icone" aria-hidden="true">↓</span>Descer</button>
+          <button data-remover>Remover</button>
+        </div>
       </div>`).join('');
 
   return layout({
     title: 'Galeria — Admin',
     page: 'gallery',
     apiBase,
-    body: `
-  <h1>Galeria — Gerenciar Imagens</h1>
-  <p class="nav"><a href="/admin">← Admin</a> · <a href="/admin/music">Música</a></p>
+    body: janela({
+      aba: 'gallery',
+      status: [`${images.length} imagens na galeria`],
+      conteudo: `
+  <fieldset>
+    <legend>Adicionar imagens</legend>
+    <div class="field-row linha">
+      <input type="file" id="fileInput" accept="image/*" multiple />
+      <button id="btEnviar">Enviar</button>
+    </div>
+    <p class="note">JPG, PNG, GIF ou WebP, até 20 MB cada.</p>
+    <p class="status" id="status"></p>
+  </fieldset>
 
-  <div class="upload-form">
-    <label for="fileInput">Adicionar imagem (JPG, PNG, GIF, WebP — máx. 20 MB)</label>
-    <input type="file" id="fileInput" accept="image/*" multiple />
-    <button onclick="uploadFiles()">Enviar</button>
-    <div id="status"></div>
-  </div>
-
-  <div class="grid" id="grid">${imageCards}</div>
+  <fieldset>
+    <legend>Imagens</legend>
+    <div class="grid" id="grid">${imageCards}</div>
+  </fieldset>
 `,
+    }),
   });
 };

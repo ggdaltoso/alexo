@@ -1,11 +1,17 @@
 const API = window.ADMIN_API;
 
+// Recado curto na barra de status, que some sozinho.
 function notify(texto) {
   const el = document.getElementById('notice');
   el.textContent = texto;
-  el.classList.add('on');
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('on'), 1800);
+  el._t = setTimeout(() => (el.textContent = ''), 3000);
+}
+
+// Motivo do backend quando ele manda um; sem isso, o status HTTP.
+async function motivo(r) {
+  const body = await r.json().catch(() => ({}));
+  return body.error || 'erro ' + r.status;
 }
 
 /*
@@ -24,10 +30,10 @@ document.addEventListener('change', async (ev) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ note: field.value }),
     });
-    if (!r.ok) throw new Error((await r.json()).error || 'Falhou');
-    notify('nota salva');
+    if (!r.ok) throw new Error(await motivo(r));
+    notify('Nota salva.');
   } catch (e) {
-    alert('Não deu para salvar a nota: ' + e.message);
+    aviso('Não deu para salvar a nota: ' + e.message, { titulo: 'Prints' });
   }
 });
 
@@ -41,14 +47,19 @@ document.addEventListener('click', async (ev) => {
 
   const card = bt.closest('.card');
   // Apagar um print não tem desfazer e o arquivo sai do cartão junto.
-  if (!confirm('Remover este print? O arquivo sai do Pi.')) return;
+  const sim = await confirmar('Remover este print?\n\nO arquivo é apagado do Pi.',
+    { titulo: 'Remover print', ok: 'Remover', perigo: true });
+  if (!sim) return;
 
   try {
     const r = await fetch(API + '/api/prints/' + card.dataset.id, { method: 'DELETE' });
-    if (!r.ok) throw new Error((await r.json()).error || 'Falhou');
+    if (!r.ok) throw new Error(await motivo(r));
+    // Recarrega em vez de só tirar o cartão: o mês pode ficar vazio e os totais
+    // da barra de status mudam, e o servidor já sabe recalcular os dois.
     card.remove();
-    notify('print removido');
+    notify('Print removido.');
+    setTimeout(() => location.reload(), 1200);
   } catch (e) {
-    alert('Não deu para remover: ' + e.message);
+    aviso('Não deu para remover o print: ' + e.message, { titulo: 'Prints' });
   }
 });

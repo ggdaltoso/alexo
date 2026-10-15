@@ -1,5 +1,22 @@
 const API = window.ADMIN_API;
 const $ = (id) => document.getElementById(id);
+
+/*
+ * Filtro do polling dos serviços (o `[servicosLivres()]` do hx-trigger).
+ *
+ * O bloco é trocado inteiro a cada 2s, e no Zero W a resposta demora. Duas
+ * coisas quebravam com isso:
+ *   - um clique em que a troca cai entre apertar e soltar o botão some: o
+ *     navegador só gera `click` se os dois acontecem no mesmo elemento.
+ *     Visto no Pi em 15/10: o primeiro "Desligar" não fez nada.
+ *   - com o modal de confirmação aberto, o botão que o pediu é trocado por
+ *     baixo, e o htmx descarta em silêncio a requisição de elemento que saiu
+ *     da página: confirmar depois de 2s não desligaria nada.
+ * Então a rodada é pulada com o mouse ou o foco no bloco, ou com modal aberto.
+ * O htmx reagenda sozinho; a atualização volta até 2s depois.
+ */
+window.servicosLivres = () =>
+  !$('services').matches(':hover, :focus-within') && !dialogoAberto();
 /*
  * Print da tela.
  *
@@ -19,14 +36,14 @@ let captureTakenAt = null;
 $('btShot').addEventListener('click', async () => {
   const b = $('btShot');
   b.disabled = true;
-  b.textContent = 'capturando…';
+  b.textContent = 'Capturando…';
 
   try {
     const r = await fetch(API + '/api/system/screenshot');
     // O erro vem em JSON mesmo numa rota que responde PNG; ver a rota.
     if (!r.ok) {
       const body = await r.json().catch(() => ({}));
-      throw new Error(body.error || 'Falhou');
+      throw new Error(body.error || 'erro ' + r.status);
     }
 
     // Sem o revoke o blob anterior fica preso na memória do navegador até
@@ -48,13 +65,13 @@ $('btShot').addEventListener('click', async () => {
     $('saveRow').classList.add('visible');
     $('note').value = '';
     $('btSave').disabled = false;
-    $('btSave').textContent = 'guardar no Pi';
+    $('btSave').textContent = 'Guardar no Pi';
   } catch (e) {
-    alert('Não deu para tirar o print: ' + e.message);
+    aviso('Não deu para tirar o print: ' + e.message, { titulo: 'Print da tela' });
   }
 
   b.disabled = false;
-  b.textContent = 'tirar print';
+  b.textContent = 'Tirar print';
 });
 
 /*
@@ -67,7 +84,7 @@ $('btShot').addEventListener('click', async () => {
 $('btSave').addEventListener('click', async () => {
   const b = $('btSave');
   b.disabled = true;
-  b.textContent = 'guardando…';
+  b.textContent = 'Guardando…';
 
   try {
     const r = await fetch(API + '/api/prints', {
@@ -76,15 +93,15 @@ $('btSave').addEventListener('click', async () => {
       body: JSON.stringify({ at: captureTakenAt, note: $('note').value }),
     });
     const body = await r.json();
-    if (!r.ok) throw new Error(body.error || 'Falhou');
+    if (!r.ok) throw new Error(body.error || 'erro ' + r.status);
 
     // Confirmação no próprio botão em vez de alert: guardar é a ação
     // esperada, e um alert por print viraria um clique a mais toda vez.
-    b.textContent = 'guardado ✓';
+    b.innerHTML = 'Guardado<span class="icone" aria-hidden="true">✓</span>';
   } catch (e) {
-    alert('Não deu para guardar: ' + e.message);
+    aviso('Não deu para guardar: ' + e.message, { titulo: 'Print da tela' });
     b.disabled = false;
-    b.textContent = 'guardar no Pi';
+    b.textContent = 'Guardar no Pi';
   }
 });
 
@@ -96,13 +113,13 @@ $('btSave').addEventListener('click', async () => {
  * o polling para: ficar tentando buscar status de uma maquina que esta
  * caindo so encheria o console de erro.
  */
-async function machine(action, pergunta) {
-  if (!confirm(pergunta)) return;
+async function machine(action, pergunta, opcoes) {
+  if (!(await confirmar(pergunta, { perigo: true, ...opcoes }))) return;
 
   try {
     const r = await fetch(API + '/api/system/' + action, { method: 'POST' });
     const body = await r.json();
-    if (!r.ok) return alert(body.error || 'Falhou');
+    if (!r.ok) return aviso(body.error || opcoes.falha, { titulo: opcoes.titulo });
   } catch (e) {
     // A máquina pode cair antes da resposta chegar; não é erro.
   }
@@ -126,9 +143,11 @@ async function machine(action, pergunta) {
 }
 
 $('btReboot').addEventListener('click', () =>
-  machine('reboot', 'Reiniciar o Pi? A tela apaga e volta em cerca de um minuto.'));
+  machine('reboot', 'Reiniciar o Pi? A tela apaga e volta em cerca de 1 minuto.',
+    { titulo: 'Reiniciar o Pi', ok: 'Reiniciar', falha: 'Não deu para reiniciar o Pi.' }));
 
 $('btPoweroff').addEventListener('click', () =>
-  machine('poweroff', 'DESLIGAR o Pi?\\n\\nNão há como ligar de volta pela rede: ' +
-    'o Zero W não tem wake-on-LAN. Só indo até ele.'));
+  machine('poweroff', 'Desligar o Pi?\n\nNão há como ligar de volta pela rede: ' +
+    'o Zero W não tem wake-on-LAN. Só indo até ele.',
+    { titulo: 'Desligar o Pi', ok: 'Desligar', falha: 'Não deu para desligar o Pi.' }));
 

@@ -10,6 +10,7 @@
  * nome ordena sozinho -- mas deixou de ser a única forma de achar as coisas.
  */
 const layout = require('./layout');
+const janela = require('./janela');
 const esc = require('./esc');
 
 module.exports = function printsPage({ apiBase, list, summary }) {
@@ -49,40 +50,39 @@ module.exports = function printsPage({ apiBase, list, summary }) {
     ].filter(Boolean).map((t) => '<div class="context">' + t + '</div>').join('');
 
     return '<div class="card" data-id="' + esc(p.id) + '">' +
-      '<a href="' + apiBase + '/uploads/prints/' + esc(p.file) + '" target="_blank">' +
-        '<img src="' + apiBase + '/uploads/prints/' + esc(p.file) + '" alt="Print de ' + esc(time) + '" />' +
+      '<a class="sunken-panel moldura" href="' + esc(apiBase) + '/uploads/prints/' + esc(p.file) + '" target="_blank">' +
+        '<img src="' + esc(apiBase) + '/uploads/prints/' + esc(p.file) + '" alt="Print de ' + esc(time) + '" />' +
       '</a>' +
       '<div class="body">' +
         '<div class="meta">' + esc(time) +
           (p.width ? ' · ' + p.width + '×' + p.height : '') +
           ' · ' + kb(p.bytes || 0) + '</div>' +
         context +
-        '<input class="note-input" value="' + esc(p.note) + '" maxlength="120" placeholder="sem nota" />' +
+        '<input class="note-input" type="text" value="' + esc(p.note) + '" maxlength="120" placeholder="sem nota" />' +
+        '<button class="del">Remover</button>' +
       '</div>' +
-      '<button class="del">✕ Remover</button>' +
     '</div>';
   };
 
   const body = list.length === 0
-    ? '<p class="empty">Nenhum print guardado ainda. Tire um print no <a href="/admin">admin</a> e clique em “guardar no Pi”.</p>'
+    ? '<p class="empty">Nenhum print guardado ainda. Tire um print na aba ' +
+      '<a href="/admin">Início</a> e clique em “Guardar no Pi”.</p>'
     : months.map((m) =>
-        '<h2>' + m.label + ' <small>' + byMonth.get(m.key).length + '</small></h2>' +
-        '<div class="grid">' + byMonth.get(m.key).map(card).join('') + '</div>').join('');
+        '<fieldset><legend>' + m.label + ' (' + byMonth.get(m.key).length + ')</legend>' +
+        '<div class="grid">' + byMonth.get(m.key).map(card).join('') + '</div></fieldset>').join('');
+
+  const total = summary.total === 1 ? '1 print' : summary.total + ' prints';
 
   return layout({
     title: 'Prints — Admin',
     page: 'prints',
     apiBase,
-    body: `
-  <h1>Prints</h1>
-  <p class="subtitle">
-    ${summary.total} print(s), ${kb(summary.bytes)} no cartão ·
-    <a href="/admin">voltar ao admin</a>
-  </p>
-
-  ${body}
-
-  <div id="notice"></div>
-`,
+    body: janela({
+      aba: 'prints',
+      // O último campo é onde o prints.js avisa "Nota salva." e afins, como a
+      // barra de status de um programa do 98 faria.
+      status: [total, `${kb(summary.bytes)} no cartão`, '<span id="notice"></span>'],
+      conteudo: body,
+    }),
   });
 };

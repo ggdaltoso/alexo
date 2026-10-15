@@ -25,11 +25,12 @@ function buttons(s) {
 
   const active = s.state === 'active';
   return [
-    active ? '' : `<button ${common('start')}>ligar</button>`,
+    active ? '' : `<button ${common('start')}>Ligar</button>`,
     s.canStop && active
-      ? `<button ${common('stop')} hx-confirm="Desligar ${esc(s.key)}?">desligar</button>`
+      ? `<button ${common('stop')} hx-confirm="${esc(`Desligar o ${s.label}?\n\n${s.description}.`)}"` +
+        ` data-confirmar-titulo="${esc(`Desligar o ${s.label}`)}" data-confirmar-ok="Desligar">Desligar</button>`
       : '',
-    `<button ${common('restart')}>reiniciar</button>`,
+    `<button ${common('restart')}>Reiniciar</button>`,
   ].join('');
 }
 
