@@ -6,7 +6,7 @@
  * vez mostraria um retrato velho de coisas que mudam a cada segundo.
  */
 const layout = require('./layout');
-const abas = require('./abas');
+const janela = require('./janela');
 
 module.exports = function homePage({ apiBase, imageCount, trackCount, albumCount, tags, brokenTags, startedAt }) {
   return layout({
@@ -14,13 +14,10 @@ module.exports = function homePage({ apiBase, imageCount, trackCount, albumCount
     page: 'home',
     apiBase,
     ui98: true,
-    body: `
-  <div class="window janela">
-    <div class="title-bar">
-      <div class="title-bar-text">Alexo — Admin</div>
-    </div>
-    <div class="window-body">
-${abas('home', `
+    body: janela({
+      aba: 'home',
+      status: [`Backend no ar desde ${startedAt.toLocaleString('pt-BR')}`],
+      conteudo: `
 
   <fieldset>
     <legend>Conteúdo</legend>
@@ -104,12 +101,7 @@ ${abas('home', `
       faz sync, desmonta e só então corta.
     </p>
   </fieldset>
-`)}
-    </div>
-    <div class="status-bar">
-      <p class="status-bar-field">Backend no ar desde ${startedAt.toLocaleString('pt-BR')}</p>
-    </div>
-  </div>
 `,
+    }),
   });
 };
