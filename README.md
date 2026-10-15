@@ -139,6 +139,7 @@ A monorepo with two halves and a deliberately thin seam between them.
 - Node.js (the Pi runs 14.15.1) + Express
 - `ws` for WebSocket
 - `htmx` for the admin blocks that refresh on their own, served from `node_modules`, never a CDN
+- `98.css` for the admin's look, served the same way; confirmations use a `<dialog>`, never `alert()`
 - In production it serves the API *and* the built frontend on one port
 
 | Module | Responsibility |
@@ -502,9 +503,9 @@ Server-rendered, no build step, no auth — they are meant for a device on your 
 |:---:|:---:|
 | ![Admin dashboard](screens/admin.png) | ![Admin gallery](screens/admin-gallery.png) |
 
-| Music — tag mapping | Music — player |
+| Music | Prints |
 |:---:|:---:|
-| ![Admin music](screens/admin-music.png) | ![Admin music player](screens/admin-music-player.png) |
+| ![Admin music](screens/admin-music.png) | ![Admin prints](screens/admin-prints.png) |
 
 The dashboard polls the reader and the player every two seconds, so "Tag encostada" and "Tocando
 agora" reflect the device live. The services block refreshes on the same cadence but by a different
@@ -512,8 +513,8 @@ route: it is an htmx fragment, so the HTML for it is built on the server, and a 
 returns the updated block instead of the page guessing when systemd will have settled. On the music page, holding a tag on the reader fills in the UID
 field for you — the UID comes from the same code path the player uses, so the two cannot disagree.
 
-> Gallery photos are blurred in this screenshot; they are personal pictures, not part of the
-> project.
+> Gallery photos are blurred in these screenshots; they are personal pictures, not part of the
+> project. The saved prints are blurred too, since they capture the display with the gallery on it.
 
 ### WebSocket
 
