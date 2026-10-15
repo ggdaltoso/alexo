@@ -562,16 +562,20 @@ async function releaseAudio() {
   console.log(`[music] áudio liberado após ${Math.round(LIBERAR_AUDIO_MS / 1000)}s parado`);
 }
 
-/** Devolve o dispositivo. Chamado por tudo que precisa sair pelo alto-falante. */
+/**
+ * Devolve o dispositivo. Chamado por tudo que precisa sair pelo alto-falante.
+ * Diz se devolveu de fato -- `resume()` precisa saber, ver lá.
+ */
 async function reclaimAudio() {
   cancelAudioRelease();
-  if (!audioReleased) return;
+  if (!audioReleased) return false;
   audioReleased = false;
   await ipc
     .command('set_property', 'audio-device', audioDevice || AUDIO_DEVICE)
     .catch(() => {});
   audioDevice = null;
   console.log('[music] áudio reocupado');
+  return true;
 }
 
 async function pause() {
@@ -583,8 +587,18 @@ async function pause() {
 
 async function resume() {
   if (!available) return null;
-  await reclaimAudio();
+  const reocupou = await reclaimAudio();
   await ipc.command('set_property', 'pause', false);
+  if (reocupou) {
+    // O mpv 0.29 do Pi reabre o ALSA com o pause ligado e, ao despausar, nunca
+    // alimenta o PCM: fica em PREPARED com appl_ptr 0, time-pos parado e
+    // core-idle falso. Sem som, e como não está "ocioso" o áudio nunca é solto
+    // de novo -- o MAX98357A fica aceso e esquentando, que é o contrário do que
+    // releaseAudio() existe para evitar. Visto em 13/10/2026 (91 min) e
+    // reproduzido em 15/10. Um seek no lugar obriga o mpv a reiniciar a saída;
+    // feito à mão no Pi travado, destravou na hora.
+    await ipc.command('seek', 0, 'relative+exact').catch(() => {});
+  }
   return emitStatus();
 }
 
