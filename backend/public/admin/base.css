@@ -50,6 +50,11 @@ menu[role=tablist] { margin-top: 0; }
 
 .buttons { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* Ícone dentro de botão ("▶ Retomar", "Próxima ▶|"). Num <span> próprio para
+   ganhar respiro do rótulo dos dois lados, conforme venha antes ou depois. */
+button .icone:first-child { margin-right: 6px; }
+button .icone:last-child { margin-left: 6px; }
+
 /* Ponto de estado dos serviços. Quadrado e com borda, como os LEDs das
    bandejas do 98; o estado por extenso continua no title. */
 .dot {

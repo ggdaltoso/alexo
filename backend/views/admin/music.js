@@ -70,11 +70,11 @@ module.exports = function musicPage({ apiBase, albums, mappings }) {
     </div>
     <p class="status" id="player">Carregando…</p>
     <div class="field-row linha">
-      <button data-acao="previous">|◀ Anterior</button>
-      <button data-acao="pause">|| Pausar</button>
-      <button data-acao="resume">▶ Retomar</button>
-      <button data-acao="next">Próxima ▶|</button>
-      <button data-acao="stop">■ Parar</button>
+      <button data-acao="previous"><span class="icone" aria-hidden="true">|◀</span>Anterior</button>
+      <button data-acao="pause"><span class="icone" aria-hidden="true">||</span>Pausar</button>
+      <button data-acao="resume"><span class="icone" aria-hidden="true">▶</span>Retomar</button>
+      <button data-acao="next">Próxima<span class="icone" aria-hidden="true">▶|</span></button>
+      <button data-acao="stop"><span class="icone" aria-hidden="true">■</span>Parar</button>
     </div>
     <div class="field-row linha">
       <button data-volume="-10">Volume −</button>

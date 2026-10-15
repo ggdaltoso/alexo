@@ -97,7 +97,7 @@ $('btSave').addEventListener('click', async () => {
 
     // Confirmação no próprio botão em vez de alert: guardar é a ação
     // esperada, e um alert por print viraria um clique a mais toda vez.
-    b.textContent = 'Guardado ✓';
+    b.innerHTML = 'Guardado<span class="icone" aria-hidden="true">✓</span>';
   } catch (e) {
     aviso('Não deu para guardar: ' + e.message, { titulo: 'Print da tela' });
     b.disabled = false;

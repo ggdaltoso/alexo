@@ -12,8 +12,8 @@ module.exports = function galleryPage({ apiBase, images }) {
           <img src="${esc(apiBase + img.url)}" alt="${esc(img.filename)}" />
         </div>
         <div class="field-row botoes">
-          <button data-mover="-1" ${i === 0 ? 'disabled' : ''}>↑ Subir</button>
-          <button data-mover="1" ${i === arr.length - 1 ? 'disabled' : ''}>↓ Descer</button>
+          <button data-mover="-1" ${i === 0 ? 'disabled' : ''}><span class="icone" aria-hidden="true">↑</span>Subir</button>
+          <button data-mover="1" ${i === arr.length - 1 ? 'disabled' : ''}><span class="icone" aria-hidden="true">↓</span>Descer</button>
           <button data-remover>Remover</button>
         </div>
       </div>`).join('');
