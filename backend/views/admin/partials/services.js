@@ -27,7 +27,8 @@ function buttons(s) {
   return [
     active ? '' : `<button ${common('start')}>Ligar</button>`,
     s.canStop && active
-      ? `<button ${common('stop')} hx-confirm="${esc(`Desligar o ${s.label}?\n\n${s.description}.`)}">Desligar</button>`
+      ? `<button ${common('stop')} hx-confirm="${esc(`Desligar o ${s.label}?\n\n${s.description}.`)}"` +
+        ` data-confirmar-titulo="${esc(`Desligar o ${s.label}`)}" data-confirmar-ok="Desligar">Desligar</button>`
       : '',
     `<button ${common('restart')}>Reiniciar</button>`,
   ].join('');

@@ -92,10 +92,18 @@
   // hx-confirm usa o confirm() nativo por padrão. O htmx avisa antes com
   // 'htmx:confirm' e deixa segurar a requisição: sem pergunta não há o que
   // confirmar, então só intercepta quando o elemento tem hx-confirm.
+  //
+  // Título e botão vêm de data-confirmar-titulo/-ok no elemento, para o modal
+  // dizer a ação ("Desligar") em vez de um "OK" genérico.
   document.addEventListener('htmx:confirm', (e) => {
     if (!e.detail.question) return;
     e.preventDefault();
-    confirmar(e.detail.question, { perigo: true }).then((sim) => {
+    const d = e.detail.elt.dataset;
+    confirmar(e.detail.question, {
+      titulo: d.confirmarTitulo || 'Confirmar',
+      ok: d.confirmarOk || 'OK',
+      perigo: true,
+    }).then((sim) => {
       if (sim) e.detail.issueRequest(true);
     });
   });
