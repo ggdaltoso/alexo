@@ -77,7 +77,6 @@ module.exports = function printsPage({ apiBase, list, summary }) {
     title: 'Prints — Admin',
     page: 'prints',
     apiBase,
-    ui98: true,
     body: janela({
       aba: 'prints',
       // O último campo é onde o prints.js avisa "Nota salva." e afins, como a

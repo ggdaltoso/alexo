@@ -22,7 +22,6 @@ module.exports = function galleryPage({ apiBase, images }) {
     title: 'Galeria — Admin',
     page: 'gallery',
     apiBase,
-    ui98: true,
     body: janela({
       aba: 'gallery',
       status: [`${images.length} imagens na galeria`],

@@ -33,7 +33,6 @@ module.exports = function musicPage({ apiBase, albums, mappings }) {
     title: 'Música — Admin',
     page: 'music',
     apiBase,
-    ui98: true,
     body: janela({
       aba: 'music',
       status: [`${albums.length} álbuns`, `${mappings.length} tags cadastradas`],

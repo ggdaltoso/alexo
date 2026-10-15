@@ -13,7 +13,6 @@ module.exports = function homePage({ apiBase, imageCount, trackCount, albumCount
     title: 'Alexo — Admin',
     page: 'home',
     apiBase,
-    ui98: true,
     body: janela({
       aba: 'home',
       status: [`Backend no ar desde ${startedAt.toLocaleString('pt-BR')}`],
