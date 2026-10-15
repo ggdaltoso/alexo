@@ -60,7 +60,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
 
 router.put('/reorder', (req, res) => {
   const updates = req.body;
-  if (!Array.isArray(updates)) return res.status(400).json({ error: 'Expected array' });
+  if (!Array.isArray(updates)) return res.status(400).json({ error: 'Esperava uma lista de { id, order }' });
   const items = state.reorderGallery(updates);
   wsServer.broadcast({ type: 'gallery_updated' });
   res.json(items);

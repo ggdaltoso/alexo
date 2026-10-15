@@ -1,26 +1,48 @@
 const API = window.ADMIN_API;
+const $ = (id) => document.getElementById(id);
+
+// Motivo do backend quando ele manda um; sem isso, o status HTTP. O limite de
+// 20 MB, por exemplo, sai do multer sem JSON.
+async function motivo(r) {
+  const body = await r.json().catch(() => ({}));
+  return body.error || 'erro ' + r.status;
+}
 
 async function uploadFiles() {
-  const input = document.getElementById('fileInput');
-  const status = document.getElementById('status');
-  if (!input.files.length) { status.textContent = 'Selecione pelo menos um arquivo.'; return; }
-  status.textContent = 'Enviando...';
-  for (const file of input.files) {
+  const input = $('fileInput');
+  const status = $('status');
+  const files = [...input.files];
+  if (!files.length) { status.textContent = 'Selecione pelo menos um arquivo.'; return; }
+
+  // Uma por vez: a rota recebe um arquivo por requisição. Se uma falhar, as
+  // anteriores já estão no Pi, então a página recarrega mesmo assim.
+  let enviadas = 0;
+  for (const file of files) {
+    status.textContent = 'Enviando ' + (enviadas + 1) + ' de ' + files.length + '…';
     const fd = new FormData();
     fd.append('image', file);
     const r = await fetch(API + '/api/gallery/upload', { method: 'POST', body: fd });
-    if (!r.ok) { status.textContent = 'Erro ao enviar ' + file.name; return; }
+    if (!r.ok) {
+      status.textContent = '';
+      await aviso('Não deu para enviar ' + file.name + ': ' + (await motivo(r)) +
+        (enviadas ? '\n\nAs ' + enviadas + ' anteriores foram enviadas.' : ''), { titulo: 'Galeria' });
+      if (enviadas) location.reload();
+      return;
+    }
+    enviadas += 1;
   }
-  status.textContent = 'Enviado com sucesso!';
+  status.textContent = enviadas === 1 ? 'Imagem enviada.' : enviadas + ' imagens enviadas.';
   input.value = '';
   setTimeout(() => location.reload(), 800);
 }
 
 async function deleteImage(id) {
-  if (!confirm('Remover esta imagem?')) return;
-  const r = await fetch(API + '/api/gallery/' + id, { method: 'DELETE' });
+  const sim = await confirmar('Remover esta imagem da galeria?\n\nO arquivo é apagado do Pi.',
+    { titulo: 'Remover imagem', ok: 'Remover', perigo: true });
+  if (!sim) return;
+  const r = await fetch(API + '/api/gallery/' + encodeURIComponent(id), { method: 'DELETE' });
   if (r.ok) location.reload();
-  else alert('Erro ao remover imagem.');
+  else aviso('Não deu para remover a imagem: ' + (await motivo(r)), { titulo: 'Galeria' });
 }
 
 async function move(id, direction) {
@@ -45,5 +67,16 @@ async function move(id, direction) {
     body: JSON.stringify(updates),
   });
   if (r.ok) location.reload();
-  else alert('Erro ao reordenar.');
+  else aviso('Não deu para reordenar: ' + (await motivo(r)), { titulo: 'Galeria' });
 }
+
+// Um listener para a grade inteira: o id da imagem está no card, e o botão diz
+// só o que fazer com ela.
+$('grid').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const id = b.closest('.card').dataset.id;
+  if (b.dataset.mover) move(id, Number(b.dataset.mover));
+  else if (b.dataset.remover !== undefined) deleteImage(id);
+});
+$('btEnviar').addEventListener('click', uploadFiles);
