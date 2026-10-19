@@ -4,7 +4,7 @@
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
 .moldura { position: relative; padding: 0; background: #000; }
-.moldura img { display: block; width: 100%; height: 130px; object-fit: cover; }
+.moldura img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
 .order { position: absolute; top: 4px; left: 4px; padding: 0 4px; background: #ffffe1; border: 1px solid #000; font-size: 11px; }
 .botoes { flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .botoes > * { margin: 0 !important; }
