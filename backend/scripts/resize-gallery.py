@@ -44,6 +44,19 @@ ORIGINAIS = os.path.join(AQUI, "..", "uploads", "gallery-originais")
 # pixels à toa.
 LADO_PADRAO = 800
 
+# Tag EXIF 274. Celular grava os pixels deitados e manda girar na exibição; o
+# save() descarta o EXIF, então a rotação tem que ir para os pixels. O Pillow do
+# Pi (5.4) ainda não tem ImageOps.exif_transpose.
+ORIENTACAO = {
+    2: Image.FLIP_LEFT_RIGHT,
+    3: Image.ROTATE_180,
+    4: Image.FLIP_TOP_BOTTOM,
+    5: Image.TRANSPOSE,
+    6: Image.ROTATE_270,
+    7: Image.TRANSVERSE,
+    8: Image.ROTATE_90,
+}
+
 
 def mb_decodificada(w, h):
     return w * h * 4 / 1048576
@@ -65,7 +78,11 @@ def reduzir_um(caminho, lado):
             # Sem draft, foto de 50 MP decodifica inteira (~200 MB) e o OOM killer
             # mata o processo; com draft o JPEG já sai em 1/8 da escala.
             img.draft("RGB", (lado, lado))
+            exif = img._getexif() if hasattr(img, "_getexif") else None
             img = img.convert("RGB")
+            girar = ORIENTACAO.get((exif or {}).get(274))
+            if girar is not None:
+                img = img.transpose(girar)
             img.thumbnail((lado, lado), Image.LANCZOS)
             img.save(caminho, format=formato or "JPEG", quality=85, optimize=True)
         return 0
