@@ -62,6 +62,9 @@ def reduzir_um(caminho, lado):
             if max(w, h) <= lado:
                 return 0
         with Image.open(caminho) as img:
+            # Sem draft, foto de 50 MP decodifica inteira (~200 MB) e o OOM killer
+            # mata o processo; com draft o JPEG já sai em 1/8 da escala.
+            img.draft("RGB", (lado, lado))
             img = img.convert("RGB")
             img.thumbnail((lado, lado), Image.LANCZOS)
             img.save(caminho, format=formato or "JPEG", quality=85, optimize=True)
@@ -131,10 +134,8 @@ def main():
         if not os.path.exists(destino_backup):
             shutil.copy2(caminho, destino_backup)
 
-        with Image.open(caminho) as img:
-            img = img.convert("RGB")
-            img.thumbnail((args.lado, args.lado), Image.LANCZOS)
-            img.save(caminho, format=formato or "JPEG", quality=85, optimize=True)
+        if reduzir_um(caminho, args.lado):
+            continue
 
         novo_tam = os.path.getsize(caminho)
         depois_disco += novo_tam
