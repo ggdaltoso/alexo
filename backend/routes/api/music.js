@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 
 const wsServer = require('../../lib/ws');
 const state = require('../../lib/state');
@@ -51,10 +52,41 @@ router.post('/tags', (req, res) => {
 });
 
 router.delete('/tags/:uid', (req, res) => {
-  const removed = state.removeTagMapping(req.params.uid.toUpperCase());
+  const uid = req.params.uid.toUpperCase();
+  const removed = state.removeTagMapping(uid);
   if (!removed) return res.status(404).json({ error: 'Tag não mapeada' });
+  const imagem = state.tagImagePath(uid);
+  if (imagem) fs.unlink(imagem, () => {});
   wsServer.broadcast({ type: 'music_tags_updated' });
   res.json({ ok: true });
+});
+
+/**
+ * Imagem do adesivo. Chega já recortada pelo editor do admin (um PNG quadrado
+ * desenhado no canvas), então aqui é só conferir e gravar.
+ */
+router.put('/tags/:uid/imagem', express.raw({ type: 'image/png', limit: '5mb' }), (req, res) => {
+  const uid = req.params.uid.toUpperCase();
+  const destino = state.tagImagePath(uid);
+  if (!destino || !state.getTagMapping(uid)) return res.status(404).json({ error: 'Tag não mapeada' });
+  // Assinatura do PNG: o content-type sozinho é só o que o cliente disse.
+  if (!Buffer.isBuffer(req.body) || req.body.toString('latin1', 1, 4) !== 'PNG') {
+    return res.status(400).json({ error: 'Esperava uma imagem PNG' });
+  }
+  fs.writeFile(destino, req.body, (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ url: state.getTagImageUrl(uid) });
+  });
+});
+
+/** Volta a tag para o adesivo de tema. */
+router.delete('/tags/:uid/imagem', (req, res) => {
+  const destino = state.tagImagePath(req.params.uid.toUpperCase());
+  if (!destino) return res.status(404).json({ error: 'Tag não mapeada' });
+  fs.unlink(destino, (err) => {
+    if (err && err.code !== 'ENOENT') return res.status(500).json({ error: err.message });
+    res.json({ ok: true });
+  });
 });
 
 /** Tag encostada no leitor AGORA. É o que deixa o admin preencher o UID sozinho. */

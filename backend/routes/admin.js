@@ -9,6 +9,7 @@ const nfcReader = require('../lib/nfcReader');
 
 const homePage = require('../views/admin/home');
 const musicPage = require('../views/admin/music');
+const etiquetasPage = require('../views/admin/etiquetas');
 const galleryPage = require('../views/admin/gallery');
 const printsPage = require('../views/admin/prints');
 const servicesBlock = require('../views/admin/partials/services');
@@ -43,9 +44,16 @@ router.get('/music', (req, res) => {
     uid: m.uid,
     album: m.album,
     count: state.getTracksByAlbum(m.album).length,
+    imagem: state.getTagImageUrl(m.uid),
   }));
 
   res.send(musicPage({ apiBase: apiBaseFor(req), albums: state.getAlbums(), mappings }));
+});
+
+/** Um adesivo por tag cadastrada: a imagem dela, ou o tema do álbum se não tiver. */
+router.get('/music/etiquetas', (req, res) => {
+  const tags = state.getTagMappings().map((m) => ({ album: m.album, imagem: state.getTagImageUrl(m.uid) }));
+  res.send(etiquetasPage({ tags, papel: req.query.papel === '5x75' }));
 });
 
 router.get('/gallery', (req, res) => {

@@ -27,6 +27,7 @@ module.exports = {
   GALERIA_DIR: path.join(RAIZ, 'uploads', 'gallery'),
   MUSICA_DIR: path.join(RAIZ, 'uploads', 'music'),
   PRINTS_DIR: path.join(RAIZ, 'uploads', 'prints'),
+  TAGS_IMG_DIR: path.join(RAIZ, 'uploads', 'tags'),
   SCRIPTS_DIR: path.join(RAIZ, 'scripts'),
   PUBLIC_ADMIN_DIR: path.join(RAIZ, 'public', 'admin'),
   HTMX_DIR: path.join(RAIZ, 'node_modules', 'htmx.org', 'dist'),

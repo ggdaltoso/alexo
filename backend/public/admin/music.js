@@ -144,6 +144,129 @@ async function refreshPlayer() {
   } catch (e) { /* idem */ }
 }
 
+// Editor da imagem da tag, no jeito de trocar avatar: a imagem anda e cresce
+// por baixo de um círculo fixo, e o que fica dentro dele vira o adesivo. O
+// recorte sai daqui pronto (PNG quadrado), o backend só grava.
+const ed = { uid: null, img: null, zoom: 1, dx: 0, dy: 0 };
+const LADO = 280;        // canvas do editor
+const RAIO = 120;        // círculo do adesivo dentro dele
+const SAIDA = 600;       // px do PNG: 25 mm a ~600 dpi
+
+function escalaBase() {
+  // "cover": no zoom 1 a imagem cobre o círculo todo, sem sobra branca.
+  return Math.max((2 * RAIO) / ed.img.width, (2 * RAIO) / ed.img.height);
+}
+
+function limitar() {
+  const s = escalaBase() * ed.zoom;
+  const folgaX = (ed.img.width * s - 2 * RAIO) / 2;
+  const folgaY = (ed.img.height * s - 2 * RAIO) / 2;
+  ed.dx = Math.max(-folgaX, Math.min(folgaX, ed.dx));
+  ed.dy = Math.max(-folgaY, Math.min(folgaY, ed.dy));
+}
+
+function desenhar() {
+  const ctx = $('edCanvas').getContext('2d');
+  ctx.clearRect(0, 0, LADO, LADO);
+  if (ed.img) {
+    const s = escalaBase() * ed.zoom;
+    const w = ed.img.width * s, h = ed.img.height * s;
+    ctx.drawImage(ed.img, LADO / 2 + ed.dx - w / 2, LADO / 2 + ed.dy - h / 2, w, h);
+  }
+  // Escurece o que fica fora do adesivo; evenodd fura o círculo no retângulo.
+  ctx.beginPath();
+  ctx.rect(0, 0, LADO, LADO);
+  ctx.arc(LADO / 2, LADO / 2, RAIO, 0, 2 * Math.PI);
+  ctx.fillStyle = 'rgba(0, 0, 0, .55)';
+  ctx.fill('evenodd');
+  ctx.beginPath();
+  ctx.arc(LADO / 2, LADO / 2, RAIO, 0, 2 * Math.PI);
+  ctx.strokeStyle = '#fff';
+  ctx.stroke();
+}
+
+function carregar(src) {
+  const img = new Image();
+  img.onload = () => {
+    Object.assign(ed, { img, zoom: 1, dx: 0, dy: 0 });
+    $('edZoom').value = 1;
+    $('edSalvar').disabled = false;
+    desenhar();
+  };
+  img.onerror = () => aviso('Não deu para abrir essa imagem.', { titulo: 'Personalizar' });
+  img.src = src;
+}
+
+function abrirEditor(uid, album, imagem) {
+  Object.assign(ed, { uid, img: null });
+  $('edTitulo').textContent = 'Personalizar: ' + album;
+  $('edSalvar').disabled = true;
+  $('edRemover').hidden = !imagem;
+  $('edArquivo').value = '';
+  desenhar();
+  // A imagem atual já é o recorte; abrir com ela deixa ajustar sem reenviar.
+  if (imagem) carregar(imagem);
+  $('editor').showModal();
+}
+
+async function salvarImagem() {
+  const out = document.createElement('canvas');
+  out.width = out.height = SAIDA;
+  const k = SAIDA / (2 * RAIO);
+  const s = escalaBase() * ed.zoom;
+  const w = ed.img.width * s, h = ed.img.height * s;
+  const x = LADO / 2 + ed.dx - w / 2 - (LADO / 2 - RAIO);
+  const y = LADO / 2 + ed.dy - h / 2 - (LADO / 2 - RAIO);
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(ed.img, x * k, y * k, w * k, h * k);
+  const blob = await new Promise((ok) => out.toBlob(ok, 'image/png'));
+  const r = await fetch(API + '/api/music/tags/' + encodeURIComponent(ed.uid) + '/imagem', {
+    method: 'PUT', headers: { 'Content-Type': 'image/png' }, body: blob,
+  });
+  if (!r.ok) return falhou(r, 'salvar a imagem');
+  location.reload();
+}
+
+async function removerImagem() {
+  const r = await fetch(API + '/api/music/tags/' + encodeURIComponent(ed.uid) + '/imagem', { method: 'DELETE' });
+  if (!r.ok) return falhou(r, 'remover a imagem');
+  location.reload();
+}
+
+let arrasto = null;
+$('edCanvas').addEventListener('pointerdown', (e) => {
+  if (!ed.img) return;
+  arrasto = { x: e.clientX - ed.dx, y: e.clientY - ed.dy };
+  e.target.setPointerCapture(e.pointerId);
+});
+$('edCanvas').addEventListener('pointermove', (e) => {
+  if (!arrasto) return;
+  ed.dx = e.clientX - arrasto.x;
+  ed.dy = e.clientY - arrasto.y;
+  limitar();
+  desenhar();
+});
+$('edCanvas').addEventListener('pointerup', () => { arrasto = null; });
+$('edCanvas').addEventListener('wheel', (e) => {
+  if (!ed.img) return;
+  e.preventDefault();
+  $('edZoom').value = Math.max(1, Math.min(5, ed.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
+  $('edZoom').dispatchEvent(new Event('input'));
+}, { passive: false });
+$('edZoom').addEventListener('input', (e) => {
+  if (!ed.img) return;
+  ed.zoom = Number(e.target.value);
+  limitar();
+  desenhar();
+});
+$('edArquivo').addEventListener('change', (e) => {
+  if (e.target.files[0]) carregar(URL.createObjectURL(e.target.files[0]));
+});
+$('edSalvar').addEventListener('click', salvarImagem);
+$('edRemover').addEventListener('click', removerImagem);
+$('edCancelar').addEventListener('click', () => $('editor').close());
+
 // Os botões levam o que precisam em data-*, escapado pelo servidor. Um
 // listener só para a tabela: as linhas são HTML que vem pronto da view.
 $('tags').addEventListener('click', (e) => {
@@ -151,6 +274,7 @@ $('tags').addEventListener('click', (e) => {
   if (!b) return;
   if (b.dataset.tocar !== undefined) play(b.dataset.tocar);
   else if (b.dataset.remover !== undefined) remove(b.dataset.remover, b.dataset.album);
+  else if (b.dataset.personalizar !== undefined) abrirEditor(b.dataset.personalizar, b.dataset.album, b.dataset.imagem);
 });
 document.querySelectorAll('[data-acao]').forEach((b) =>
   b.addEventListener('click', () => action(b.dataset.acao)));

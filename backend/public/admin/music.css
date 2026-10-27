@@ -11,6 +11,14 @@ select { min-width: 14rem; max-width: 100%; }
 .num { text-align: right; }
 .acoes { white-space: nowrap; text-align: right; }
 .acoes button { min-width: 0; }
+/* Miniatura do adesivo, redonda como ele. */
+.mini { width: 20px; height: 20px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+
+/* Editor de imagem da tag (o <dialog> herda o .dialogo do base.css). */
+.editor canvas { display: block; margin: 0 auto 8px; background: #fff; touch-action: none; cursor: grab; box-shadow: inset -1px -1px #fff, inset 1px 1px grey; }
+.editor input[type=range] { flex: 1; }
+/* <label> com cara de botão: é o que abre o seletor de arquivo. */
+.button-like { box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px grey, inset 2px 2px #dfdfdf; background: silver; padding: 4px 10px; margin-right: auto; cursor: pointer; }
 .empty { color: var(--dim); text-align: center; padding: 16px; }
 .error { color: var(--error); }
 

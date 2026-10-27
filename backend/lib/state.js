@@ -1,13 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 
-const { DATA_DIR } = require('../config');
+const { DATA_DIR, TAGS_IMG_DIR } = require('../config');
 const GALLERY_FILE = path.join(DATA_DIR, 'gallery.json');
 const TRACKS_FILE = path.join(DATA_DIR, 'music-tracks.json');
 const TAGS_FILE = path.join(DATA_DIR, 'nfc-tags.json');
 
 // data/ não é sincronizado pelo deploy -- ver o comentário no config.js.
 fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(TAGS_IMG_DIR, { recursive: true });
 
 let state = {
   message: null,
@@ -190,6 +191,26 @@ function getTagMappings() {
   return readTagMappings();
 }
 
+/**
+ * Imagem do adesivo da tag, em uploads/tags/<UID>.png. Não vai para o JSON: o
+ * arquivo existir é o próprio registro. O `?v=` muda a cada troca de imagem,
+ * senão o navegador seguia mostrando a antiga do cache.
+ */
+function tagImagePath(uid) {
+  // O UID vira nome de arquivo; só hexadecimal impede um `../` de sair da pasta.
+  if (!/^[0-9A-F]+$/.test(uid)) return null;
+  return path.join(TAGS_IMG_DIR, `${uid}.png`);
+}
+
+function getTagImageUrl(uid) {
+  const p = tagImagePath(uid);
+  try {
+    return p && `/uploads/tags/${uid}.png?v=${Math.round(fs.statSync(p).mtimeMs)}`;
+  } catch (err) {
+    return null;
+  }
+}
+
 function getTagMapping(uid) {
   return readTagMappings().find((m) => m.uid === uid) || null;
 }
@@ -242,6 +263,8 @@ module.exports = {
   getTracksByAlbum,
   getTagMappings,
   getTagMapping,
+  tagImagePath,
+  getTagImageUrl,
   setTagMapping,
   removeTagMapping,
   getPlayerState,
